@@ -1,6 +1,6 @@
 # Node.aec // Revit Plugins — Agent Guide
 
-Guia de engenharia canônico para agentes autônomos de IA (Antigravity, Claude Code, Codex, Cursor, OpenCode, Copilot) que desenvolvem, mantêm ou refatoram código dentro do repositório **`nodeaec/revit-plugins`**.
+Guia de engenharia canônico para agentes autônomos de IA (Antigravity, Claude Code, Cursor, OpenCode, Copilot) que desenvolvem, mantêm ou refatoram código dentro do repositório **`nodeaec/revit-plugins`**.
 
 Repositório oficial: [github.com/nodeaec/revit-plugins](https://github.com/nodeaec/revit-plugins)
 
@@ -12,7 +12,32 @@ O repositório `revit-plugins` hospeda códigos públicos, SDKs, add-ins de refe
 Sua meta é acelerar o ecossistema de desenvolvedores AEC/BIM, padronizando a integração com a plataforma Node.aec (licenciamento, catálogo, atualizações) e servindo de referência de engenharia para plugins profissionais.
 
 > [!NOTE]
-> Se o seu objetivo for instruir como integrar o licenciamento Node.aec em um **plugin externo de um usuário**, consulte o guia específico em [`NodeAec.Licensing.Sample/AGENTS.md`](NodeAec.Licensing.Sample/AGENTS.md). Este arquivo atual rege o desenvolvimento **interno deste repositório**.
+> Se o seu objetivo for instruir como integrar o licenciamento Node.aec em um **plugin externo de um usuário**, consulte o guia específico em [`NodeAec.Licensing.Sample/AGENTS.md`](NodeAec.Licensing.Sample/AGENTS.md) ou a skill [`.agents/skills/licensing-integrate`](.agents/skills/licensing-integrate/SKILL.md). Este arquivo atual rege o desenvolvimento **interno deste repositório**.
+
+---
+
+## 🧩 Habilidades Modulares (.agents/skills/)
+
+Este repositório disponibiliza habilidades modulares especializadas para agentes autônomos de IA. Invoque a skill correspondente ao objetivo da tarefa:
+
+### 1. Domínio & Ferramentas Revit
+| Skill | Escopo e Gatilhos de Ativação | Caminho Canônico |
+|---|---|---|
+| **`licensing-integrate`** | Integrar licenciamento Node.aec em plugins novos ou existentes, rodar Fase de Grilling, proteger comandos comerciais (`IExternalCommand`). | [`.agents/skills/licensing-integrate`](.agents/skills/licensing-integrate/SKILL.md) |
+| **`ribbon-guard`** | Criar/modificar painéis e botões da Ribbon, garantir aba `Node.aec`, ícones não-bloqueantes e deduplicação via AdWindows. | [`.agents/skills/ribbon-guard`](.agents/skills/ribbon-guard/SKILL.md) |
+| **`revit-build-validate`** | Compilar via `dotnet build`, garantir 0 erros, isolar DLLs do RevitAPI e validar dependências do runtime. | [`.agents/skills/revit-build-validate`](.agents/skills/revit-build-validate/SKILL.md) |
+| **`release-pack`** | Empacotar releases `.zip` via `release.ps1`, verificar SHA-256 e instalar no Revit local (`%ProgramData%`). | [`.agents/skills/release-pack`](.agents/skills/release-pack/SKILL.md) |
+
+### 2. Engenharia de Software, Qualidade & Workflow
+| Skill | Escopo e Gatilhos de Ativação | Caminho Canônico |
+|---|---|---|
+| **`clean-code-and-oop`** | Padrões de Clean Code em C#, SOLID, SRP, early returns e desacoplamento entre UI do Revit e regras de domínio. | [`.agents/skills/clean-code-and-oop`](.agents/skills/clean-code-and-oop/SKILL.md) |
+| **`document-touched-code`** | Documentação XML (`/// <summary>`, `<param>`, `<returns>`) em membros C# e comentários explicativos de intenção. | [`.agents/skills/document-touched-code`](.agents/skills/document-touched-code/SKILL.md) |
+| **`security-defense-and-mitigation`** | Criptografia Ed25519 SPKI, DPAPI (`CurrentUser`), machine lock SHA-256, HTTPS e proteção fail-closed. | [`.agents/skills/security-defense-and-mitigation`](.agents/skills/security-defense-and-mitigation/SKILL.md) |
+| **`code-review`** | Revisão de código em dois eixos (Padrões do Revit + Especificação funcional) com subagentes auditores. | [`.agents/skills/code-review`](.agents/skills/code-review/SKILL.md) |
+| **`test-first-delivery`** | Desenvolvimento orientado a testes (IV-TDD) em C# para lógica headless sem dependência da UI do Revit. | [`.agents/skills/test-first-delivery`](.agents/skills/test-first-delivery/SKILL.md) |
+| **`git-change-workflow`** | Estratégia de branches (Fast Track vs Planned Track), commits atômicos e inspeção antes de staging. | [`.agents/skills/git-change-workflow`](.agents/skills/git-change-workflow/SKILL.md) |
+| **`semantic-commit`** | Formatar e executar commits semânticos padronizados com escopos de plugins Revit (`<type>(<scope>): <summary>`). | [`.agents/skills/semantic-commit`](.agents/skills/semantic-commit/SKILL.md) |
 
 ---
 
