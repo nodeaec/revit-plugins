@@ -1,0 +1,38 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Unit-only test suite for the licensing core (CI-safe, no Revit required).
+
+    Strategy: link the Revit-independent sources (Client + Config) instead of
+    ProjectReference to the plugin. The plugin targets net8.0-windows and
+    references RevitAPI from a local Windows install, so it cannot build on
+    Linux CI. The linked files are pure .NET (HTTP + JSON + SHA-256) plus two
+    Windows-only APIs used defensively:
+      - Microsoft.Win32.Registry (GetMachineId falls back to MachineName)
+      - ProtectedData/DPAPI (cache read/write fail silently when unavailable)
+    Revit-dependent code (App, Commands, UI) is intentionally NOT linked and
+    therefore not covered here; that is integration-test territory.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <IsPackable>false</IsPackable>
+    <RootNamespace>NodeAec.Licensing.Tests</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.11.0" />
+    <PackageReference Include="Microsoft.Win32.Registry" Version="5.0.0" />
+    <PackageReference Include="System.Security.Cryptography.ProtectedData" Version="8.0.0" />
+    <PackageReference Include="coverlet.collector" Version="6.0.2" />
+    <PackageReference Include="xunit" Version="2.9.2" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="2.8.2" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Include="..\..\src\NodeAec.Licensing.Sample\Client\NodeAecLicenseClient.cs" Link="LinkedSources\Client\NodeAecLicenseClient.cs" />
+    <Compile Include="..\..\src\NodeAec.Licensing.Sample\Config\LicenseConfig.cs" Link="LinkedSources\Config\LicenseConfig.cs" />
+  </ItemGroup>
+
+</Project>
