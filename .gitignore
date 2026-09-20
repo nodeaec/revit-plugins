@@ -1,0 +1,17 @@
+# Build outputs (dotnet build)
+[Bb]in/
+[Oo]bj/
+
+# Visual Studio (AGENTS.md: sem bin/, obj/, .vs/)
+.vs/
+*.user
+
+# Packaging gerado por scripts/release.ps1
+**/release/stage/
+**/release/*.zip
+**/release/*.sha256
+
+# OS
+Thumbs.db
+Desktop.ini
+.DS_Store
