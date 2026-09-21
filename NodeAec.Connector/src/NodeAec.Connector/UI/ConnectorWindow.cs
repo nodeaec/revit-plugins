@@ -1,10 +1,6 @@
 using System;
-using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
-using System.Linq;
-using System.Reflection;
-using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Interop;
@@ -22,34 +18,34 @@ using NodeAec.Connector.Storage;
 namespace NodeAec.Connector.UI;
 
 /// <summary>
-/// Janela gráfica WPF unificada do Node.aec Connector para Autodesk Revit.
-/// Apresenta o estado da conta, produtos autorizados, sincronização via browser SSO
-/// e ativação de chaves avulsas/offline.
+/// Janela "Minha Conta" do Node.aec Connector para Autodesk Revit.
+/// Linguagem pensada para arquitetos (sem jargão técnico): entrar, sair e atualizar
+/// licenças. A ativação manual de chaves fica recolhida em um expansor fechado.
+/// Identidade visual segue o light mode da web Node.aec.
 /// </summary>
 public class ConnectorWindow : Window
 {
-    private readonly TextBlock _txtAccountStatus;
+    private readonly TextBlock _txtAccountTitle;
+    private readonly TextBlock _txtAccountHint;
     private readonly Button _btnLogin;
     private readonly Button _btnLogout;
-    private readonly TextBlock _txtLeaseSummary;
-    private readonly TextBlock _txtMachineId;
-    private readonly StackPanel _entitlementsListPanel;
+    private readonly TextBlock _txtLicenseStatus;
+    private readonly Button _btnSync;
     private readonly TextBox _txtManualKey;
     private readonly Button _btnActivateKey;
-    private readonly Button _btnImportLease;
-    private readonly Button _btnSync;
+    private readonly TextBlock _txtMachineId;
     private readonly TextBlock _txtFeedback;
 
     public ConnectorWindow()
     {
-        Title = "Node.aec Connector — Hub de Licenças & Governança";
-        Width = 620;
-        Height = 740;
-        MinWidth = 580;
-        MinHeight = 650;
+        Title = "Minha Conta — Node.aec";
+        Width = 560;
+        Height = 700;
+        MinWidth = 520;
+        MinHeight = 600;
         WindowStartupLocation = WindowStartupLocation.CenterScreen;
-        Background = new SolidColorBrush(Color.FromRgb(15, 23, 42)); // Slate 900
-        Foreground = new SolidColorBrush(Color.FromRgb(248, 250, 252));
+        Background = UiTheme.Brush(UiTheme.Background);
+        Foreground = UiTheme.Brush(UiTheme.Text);
         FontFamily = new FontFamily("Segoe UI, -apple-system, sans-serif");
 
         try
@@ -77,128 +73,132 @@ public class ConnectorWindow : Window
         mainScroll.Content = root;
         Content = mainScroll;
 
-        // 1. Header
+        // 1. Cabeçalho
         root.Children.Add(BuildHeader());
 
-        // 2. Account & SSO Card
-        var accountCard = BuildCard("Conta & Autenticação", out var accountContent);
-        var accountGrid = new Grid { Margin = new Thickness(0, 8, 0, 0) };
-        accountGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        accountGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        accountGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-
-        _txtAccountStatus = new TextBlock
+        // 2. Cartão da conta (entrar / sair)
+        var accountCard = BuildCard("Sua conta", out var accountContent);
+        _txtAccountTitle = new TextBlock
         {
-            Text = "Verificando sessão...",
-            FontSize = 14,
+            FontSize = 15,
             FontWeight = FontWeights.SemiBold,
-            Foreground = new SolidColorBrush(Color.FromRgb(241, 245, 249)),
-            VerticalAlignment = VerticalAlignment.Center
+            Foreground = UiTheme.Brush(UiTheme.Text),
+            TextWrapping = TextWrapping.Wrap
         };
-        Grid.SetColumn(_txtAccountStatus, 0);
-        accountGrid.Children.Add(_txtAccountStatus);
+        accountContent.Children.Add(_txtAccountTitle);
 
-        _btnLogin = CreateButton("Entrar com Node.aec", Color.FromRgb(14, 165, 233), Brushes.White);
-        _btnLogin.Margin = new Thickness(8, 0, 0, 0);
+        _txtAccountHint = new TextBlock
+        {
+            FontSize = 12,
+            Foreground = UiTheme.Brush(UiTheme.TextSecondary),
+            Margin = new Thickness(0, 4, 0, 12),
+            TextWrapping = TextWrapping.Wrap
+        };
+        accountContent.Children.Add(_txtAccountHint);
+
+        var accountButtons = new StackPanel { Orientation = Orientation.Horizontal };
+        _btnLogin = CreatePrimaryButton("Entrar com minha conta");
         _btnLogin.Click += async (s, e) => await HandleBrowserLoginAsync();
-        Grid.SetColumn(_btnLogin, 1);
-        accountGrid.Children.Add(_btnLogin);
+        accountButtons.Children.Add(_btnLogin);
 
-        _btnLogout = CreateButton("Sair", Color.FromRgb(51, 65, 85), new SolidColorBrush(Color.FromRgb(203, 213, 225)));
+        _btnLogout = CreateQuietButton("Sair da conta");
         _btnLogout.Margin = new Thickness(8, 0, 0, 0);
         _btnLogout.Click += (s, e) => HandleLogout();
-        Grid.SetColumn(_btnLogout, 2);
-        accountGrid.Children.Add(_btnLogout);
-
-        accountContent.Children.Add(accountGrid);
+        accountButtons.Children.Add(_btnLogout);
+        accountContent.Children.Add(accountButtons);
         root.Children.Add(accountCard);
 
-        // 3. Lease & Hardware Status Card
-        var leaseCard = BuildCard("Status da Estação & Concessão", out var leaseContent);
-        _txtLeaseSummary = new TextBlock
+        // 3. Cartão das licenças neste computador
+        var licenseCard = BuildCard("Neste computador", out var licenseContent);
+        _txtLicenseStatus = new TextBlock
         {
-            Text = "Carregando concessão de licenças...",
             FontSize = 13,
-            Foreground = new SolidColorBrush(Color.FromRgb(148, 163, 184)),
-            Margin = new Thickness(0, 4, 0, 4)
+            Foreground = UiTheme.Brush(UiTheme.TextSecondary),
+            Margin = new Thickness(0, 0, 0, 12),
+            TextWrapping = TextWrapping.Wrap
         };
-        leaseContent.Children.Add(_txtLeaseSummary);
+        licenseContent.Children.Add(_txtLicenseStatus);
 
-        _txtMachineId = new TextBlock
-        {
-            Text = $"Machine ID: {HardwareId.GetMachineId()}",
-            FontSize = 11,
-            FontFamily = new FontFamily("Consolas, Courier New"),
-            Foreground = new SolidColorBrush(Color.FromRgb(100, 116, 139)),
-            Margin = new Thickness(0, 0, 0, 8)
-        };
-        leaseContent.Children.Add(_txtMachineId);
-
-        var syncRow = new StackPanel { Orientation = Orientation.Horizontal };
-        _btnSync = CreateButton("Sincronizar Licenças", Color.FromRgb(16, 185, 129), Brushes.White);
+        _btnSync = CreatePrimaryButton("Atualizar minhas licenças");
         _btnSync.Click += async (s, e) => await HandleSyncAsync();
-        syncRow.Children.Add(_btnSync);
-        leaseContent.Children.Add(syncRow);
+        licenseContent.Children.Add(_btnSync);
+        root.Children.Add(licenseCard);
 
-        root.Children.Add(leaseCard);
+        // 4. Ativação manual recolhida (não polui a interface principal)
+        var manualExpander = new Expander
+        {
+            Header = "Tenho uma chave de ativação",
+            IsExpanded = false,
+            FontSize = 13,
+            FontWeight = FontWeights.SemiBold,
+            Foreground = UiTheme.Brush(UiTheme.Primary),
+            Margin = new Thickness(0, 0, 0, 16)
+        };
+        var manualContent = new StackPanel { Margin = new Thickness(0, 8, 0, 0) };
+        manualContent.Children.Add(new TextBlock
+        {
+            Text = "Se a sua empresa enviou uma chave (começa com NAEC-...), digite abaixo para liberar.",
+            FontSize = 12,
+            FontWeight = FontWeights.Normal,
+            Foreground = UiTheme.Brush(UiTheme.TextSecondary),
+            Margin = new Thickness(0, 0, 0, 8),
+            TextWrapping = TextWrapping.Wrap
+        });
 
-        // 4. Entitlements List Card
-        var entCard = BuildCard("Plugins & Soluções Concedidas", out var entContent);
-        _entitlementsListPanel = new StackPanel { Margin = new Thickness(0, 6, 0, 0) };
-        entContent.Children.Add(_entitlementsListPanel);
-        root.Children.Add(entCard);
-
-        // 5. Manual Key / Air-Gapped Card
-        var keyCard = BuildCard("Ativação Manual / Modo Offline (Air-Gapped)", out var keyContent);
-        var keyRow = new Grid { Margin = new Thickness(0, 8, 0, 0) };
+        var keyRow = new Grid { Margin = new Thickness(0, 0, 0, 8) };
         keyRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        keyRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         keyRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
 
         _txtManualKey = new TextBox
         {
             FontSize = 13,
             Padding = new Thickness(10, 8, 10, 8),
-            Background = new SolidColorBrush(Color.FromRgb(15, 23, 42)),
-            Foreground = new SolidColorBrush(Color.FromRgb(241, 245, 249)),
-            BorderBrush = new SolidColorBrush(Color.FromRgb(51, 65, 85)),
+            Background = UiTheme.Brush(UiTheme.Card),
+            Foreground = UiTheme.Brush(UiTheme.Text),
+            BorderBrush = UiTheme.Brush(UiTheme.Border),
             BorderThickness = new Thickness(1),
             FontFamily = new FontFamily("Consolas, Courier New")
         };
         Grid.SetColumn(_txtManualKey, 0);
         keyRow.Children.Add(_txtManualKey);
 
-        _btnActivateKey = CreateButton("Ativar Chave", Color.FromRgb(30, 41, 59), new SolidColorBrush(Color.FromRgb(56, 189, 248)));
-        _btnActivateKey.BorderBrush = new SolidColorBrush(Color.FromRgb(56, 189, 248));
-        _btnActivateKey.BorderThickness = new Thickness(1);
+        _btnActivateKey = CreatePrimaryButton("Ativar");
         _btnActivateKey.Margin = new Thickness(8, 0, 0, 0);
         _btnActivateKey.Click += async (s, e) => await HandleActivateKeyAsync();
         Grid.SetColumn(_btnActivateKey, 1);
         keyRow.Children.Add(_btnActivateKey);
+        manualContent.Children.Add(keyRow);
 
-        _btnImportLease = CreateButton("Importar .lease", Color.FromRgb(30, 41, 59), new SolidColorBrush(Color.FromRgb(148, 163, 184)));
-        _btnImportLease.Margin = new Thickness(8, 0, 0, 0);
-        _btnImportLease.Click += (s, e) => HandleImportLeaseFile();
-        Grid.SetColumn(_btnImportLease, 2);
-        keyRow.Children.Add(_btnImportLease);
+        var btnImportLease = CreateLinkButton("ou importar um arquivo de licença (.lease)");
+        btnImportLease.Click += (s, e) => HandleImportLeaseFile();
+        manualContent.Children.Add(btnImportLease);
 
-        keyContent.Children.Add(keyRow);
-        root.Children.Add(keyCard);
+        _txtMachineId = new TextBlock
+        {
+            Text = $"Identificação desta máquina (para o suporte): {HardwareId.GetMachineId()}",
+            FontSize = 11,
+            FontFamily = new FontFamily("Consolas, Courier New"),
+            Foreground = UiTheme.Brush(UiTheme.TextSecondary),
+            Margin = new Thickness(0, 12, 0, 0),
+            TextWrapping = TextWrapping.Wrap
+        };
+        manualContent.Children.Add(_txtMachineId);
+        manualExpander.Content = manualContent;
+        root.Children.Add(manualExpander);
 
-        // 6. Feedback message
+        // 5. Mensagem de retorno
         _txtFeedback = new TextBlock
         {
             FontSize = 12,
             FontWeight = FontWeights.Medium,
-            Margin = new Thickness(0, 12, 0, 12),
+            Margin = new Thickness(0, 0, 0, 12),
             TextWrapping = TextWrapping.Wrap
         };
         root.Children.Add(_txtFeedback);
 
-        // 7. Footer
+        // 6. Rodapé
         root.Children.Add(BuildFooter());
 
-        // Carrega o estado inicial da máquina
         RefreshUiFromStorage();
     }
 
@@ -209,35 +209,25 @@ public class ConnectorWindow : Window
         header.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
 
         var titlePanel = new StackPanel();
-        var titleText = new TextBlock
+        titlePanel.Children.Add(new TextBlock
         {
-            Text = "Node.aec Connector",
-            FontSize = 20,
+            Text = "Minha Conta",
+            FontSize = 22,
             FontWeight = FontWeights.Bold,
-            Foreground = new SolidColorBrush(Color.FromRgb(56, 189, 248)) // Sky 400
-        };
-        var subtitle = new TextBlock
+            Foreground = UiTheme.Brush(UiTheme.Primary)
+        });
+        titlePanel.Children.Add(new TextBlock
         {
-            Text = "Governança unificada de licenças e ferramentas BIM para Autodesk Revit",
+            Text = "Suas licenças da Node.aec em um só lugar.",
             FontSize = 12,
-            Foreground = new SolidColorBrush(Color.FromRgb(148, 163, 184)),
+            Foreground = UiTheme.Brush(UiTheme.TextSecondary),
             Margin = new Thickness(0, 4, 0, 0)
-        };
-        titlePanel.Children.Add(titleText);
-        titlePanel.Children.Add(subtitle);
+        });
         Grid.SetColumn(titlePanel, 0);
         header.Children.Add(titlePanel);
 
-        var btnCatalog = new Button
-        {
-            Content = "↗ Abrir Catálogo",
-            FontSize = 12,
-            Foreground = new SolidColorBrush(Color.FromRgb(56, 189, 248)),
-            Background = Brushes.Transparent,
-            BorderThickness = new Thickness(0),
-            Cursor = System.Windows.Input.Cursors.Hand,
-            VerticalAlignment = VerticalAlignment.Center
-        };
+        var btnCatalog = CreateLinkButton("Ver catálogo ↗");
+        btnCatalog.VerticalAlignment = VerticalAlignment.Center;
         btnCatalog.Click += (s, e) => OpenCatalog();
         Grid.SetColumn(btnCatalog, 1);
         header.Children.Add(btnCatalog);
@@ -249,8 +239,8 @@ public class ConnectorWindow : Window
     {
         var border = new Border
         {
-            Background = new SolidColorBrush(Color.FromRgb(30, 41, 59)), // Slate 800
-            BorderBrush = new SolidColorBrush(Color.FromRgb(51, 65, 85)), // Slate 700
+            Background = UiTheme.Brush(UiTheme.Card),
+            BorderBrush = UiTheme.Brush(UiTheme.Border),
             BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(8),
             Padding = new Thickness(16),
@@ -258,15 +248,14 @@ public class ConnectorWindow : Window
         };
 
         var stack = new StackPanel();
-        var lblTitle = new TextBlock
+        stack.Children.Add(new TextBlock
         {
             Text = title,
             FontSize = 13,
             FontWeight = FontWeights.Bold,
-            Foreground = new SolidColorBrush(Color.FromRgb(203, 213, 225)),
+            Foreground = UiTheme.Brush(UiTheme.Primary),
             Margin = new Thickness(0, 0, 0, 6)
-        };
-        stack.Children.Add(lblTitle);
+        });
 
         contentPanel = new StackPanel();
         stack.Children.Add(contentPanel);
@@ -282,15 +271,15 @@ public class ConnectorWindow : Window
 
         var docInfo = new TextBlock
         {
-            Text = $"Versão {ConnectorConfig.Version} // nodeaec.com.br",
+            Text = $"Node.aec Connector {ConnectorConfig.Version}",
             FontSize = 11,
-            Foreground = new SolidColorBrush(Color.FromRgb(100, 116, 139)),
+            Foreground = UiTheme.Brush(UiTheme.TextSecondary),
             VerticalAlignment = VerticalAlignment.Center
         };
         Grid.SetColumn(docInfo, 0);
         footer.Children.Add(docInfo);
 
-        var btnClose = CreateButton("Fechar", Color.FromRgb(51, 65, 85), Brushes.White);
+        var btnClose = CreateQuietButton("Fechar");
         btnClose.Click += (s, e) => Close();
         Grid.SetColumn(btnClose, 1);
         footer.Children.Add(btnClose);
@@ -298,13 +287,29 @@ public class ConnectorWindow : Window
         return footer;
     }
 
-    private Button CreateButton(string content, Color bgColor, Brush fgColor)
+    private static Button CreatePrimaryButton(string content)
     {
         return new Button
         {
             Content = content,
-            Background = new SolidColorBrush(bgColor),
-            Foreground = fgColor,
+            Background = UiTheme.Brush(UiTheme.Primary),
+            Foreground = Brushes.White,
+            Padding = new Thickness(16, 9, 16, 9),
+            FontWeight = FontWeights.SemiBold,
+            FontSize = 12,
+            Cursor = System.Windows.Input.Cursors.Hand,
+            BorderThickness = new Thickness(0),
+            FocusVisualStyle = null
+        };
+    }
+
+    private static Button CreateQuietButton(string content)
+    {
+        return new Button
+        {
+            Content = content,
+            Background = UiTheme.Brush(UiTheme.SoftBackground),
+            Foreground = UiTheme.Brush(UiTheme.Text),
             Padding = new Thickness(14, 8, 14, 8),
             FontWeight = FontWeights.SemiBold,
             FontSize = 12,
@@ -314,18 +319,34 @@ public class ConnectorWindow : Window
         };
     }
 
+    private static Button CreateLinkButton(string content)
+    {
+        return new Button
+        {
+            Content = content,
+            FontSize = 12,
+            Foreground = UiTheme.Brush(UiTheme.Info),
+            Background = Brushes.Transparent,
+            BorderThickness = new Thickness(0),
+            Cursor = System.Windows.Input.Cursors.Hand,
+            FocusVisualStyle = null
+        };
+    }
+
     public void RefreshUiFromStorage()
     {
         var session = LeaseStorage.LoadSession();
         if (session.HasValue && !string.IsNullOrWhiteSpace(session.Value.Email))
         {
-            _txtAccountStatus.Text = $"Conectado como {session.Value.Email}";
+            _txtAccountTitle.Text = "Olá! Você está conectado como:";
+            _txtAccountHint.Text = session.Value.Email ?? string.Empty;
             _btnLogin.Visibility = Visibility.Collapsed;
             _btnLogout.Visibility = Visibility.Visible;
         }
         else
         {
-            _txtAccountStatus.Text = "Não Conectado (Offline / Chaves Avulsas)";
+            _txtAccountTitle.Text = "Você ainda não entrou.";
+            _txtAccountHint.Text = "Entre com sua conta para liberar seus plugins neste computador.";
             _btnLogin.Visibility = Visibility.Visible;
             _btnLogout.Visibility = Visibility.Collapsed;
         }
@@ -333,158 +354,35 @@ public class ConnectorWindow : Window
         string? jwtToken = LeaseStorage.LoadMasterLease();
         if (string.IsNullOrWhiteSpace(jwtToken))
         {
-            _txtLeaseSummary.Text = "Nenhuma concessão ativa nesta máquina.";
-            _entitlementsListPanel.Children.Clear();
-            _entitlementsListPanel.Children.Add(new TextBlock
-            {
-                Text = "Nenhum produto autorizado no momento. Faça login ou insira uma chave para sincronizar.",
-                FontSize = 12,
-                Foreground = new SolidColorBrush(Color.FromRgb(148, 163, 184)),
-                Margin = new Thickness(0, 4, 0, 4)
-            });
+            _txtLicenseStatus.Text = "Nenhuma licença encontrada neste computador ainda.";
+            _txtLicenseStatus.Foreground = UiTheme.Brush(UiTheme.TextSecondary);
             return;
         }
 
         var payload = LeaseStorage.ParseJwtPayload(jwtToken);
         if (payload == null)
         {
-            _txtLeaseSummary.Text = "Token de concessão corrompido ou formato inválido.";
+            _txtLicenseStatus.Text = "Não conseguimos ler as licenças salvas. Tente atualizar.";
+            _txtLicenseStatus.Foreground = UiTheme.Brush(UiTheme.Error);
             return;
         }
 
         var exp = payload.ExpiresAt;
-        var diff = exp - DateTimeOffset.UtcNow;
         if (payload.IsExpired)
         {
-            _txtLeaseSummary.Text = $"Concessão offline expirada em {exp:dd/MM/yyyy}. Conecte-se para renovar.";
-            _txtLeaseSummary.Foreground = new SolidColorBrush(Color.FromRgb(248, 113, 113)); // Red 400
+            _txtLicenseStatus.Text = $"Suas licenças estão desatualizadas desde {exp:dd/MM/yyyy}. Conecte-se à internet e clique em atualizar.";
+            _txtLicenseStatus.Foreground = UiTheme.Brush(UiTheme.Error);
         }
         else
         {
-            _txtLeaseSummary.Text = $"Concessão ativa até {exp:dd/MM/yyyy HH:mm} (restam {(int)diff.TotalDays} dias de tolerância offline).";
-            _txtLeaseSummary.Foreground = new SolidColorBrush(Color.FromRgb(74, 222, 128)); // Green 400
-        }
-
-        _entitlementsListPanel.Children.Clear();
-        var entitlements = payload.Entitlements ?? new List<EntitlementItem>();
-
-        if (entitlements.Count == 0)
-        {
-            _entitlementsListPanel.Children.Add(new TextBlock
-            {
-                Text = "Esta conta não possui plugins licenciados no momento.",
-                FontSize = 12,
-                Foreground = new SolidColorBrush(Color.FromRgb(148, 163, 184)),
-                Margin = new Thickness(0, 4, 0, 4)
-            });
-            return;
-        }
-
-        foreach (var ent in entitlements)
-        {
-            _entitlementsListPanel.Children.Add(BuildEntitlementCard(ent));
+            _txtLicenseStatus.Text = $"Tudo certo — suas licenças estão atualizadas até {exp:dd/MM/yyyy}.";
+            _txtLicenseStatus.Foreground = UiTheme.Brush(UiTheme.Success);
         }
     }
 
-    private FrameworkElement BuildEntitlementCard(EntitlementItem item)
+    private async System.Threading.Tasks.Task HandleBrowserLoginAsync()
     {
-        var card = new Border
-        {
-            Background = new SolidColorBrush(Color.FromRgb(15, 23, 42)),
-            BorderBrush = new SolidColorBrush(Color.FromRgb(51, 65, 85)),
-            BorderThickness = new Thickness(1),
-            CornerRadius = new CornerRadius(6),
-            Padding = new Thickness(12, 10, 12, 10),
-            Margin = new Thickness(0, 0, 0, 8)
-        };
-
-        var grid = new Grid();
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-
-        var infoPanel = new StackPanel();
-        var titleRow = new StackPanel { Orientation = Orientation.Horizontal };
-
-        var nameBlock = new TextBlock
-        {
-            Text = string.IsNullOrWhiteSpace(item.Name) ? item.Slug : item.Name,
-            FontSize = 13,
-            FontWeight = FontWeights.Bold,
-            Foreground = new SolidColorBrush(Color.FromRgb(241, 245, 249))
-        };
-        titleRow.Children.Add(nameBlock);
-
-        var typeBadge = new Border
-        {
-            Background = new SolidColorBrush(Color.FromRgb(30, 41, 59)),
-            CornerRadius = new CornerRadius(4),
-            Padding = new Thickness(6, 2, 6, 2),
-            Margin = new Thickness(8, 0, 0, 0)
-        };
-        typeBadge.Child = new TextBlock
-        {
-            Text = item.Type.ToUpperInvariant(),
-            FontSize = 10,
-            FontWeight = FontWeights.Bold,
-            Foreground = new SolidColorBrush(Color.FromRgb(148, 163, 184))
-        };
-        titleRow.Children.Add(typeBadge);
-        infoPanel.Children.Add(titleRow);
-
-        string expInfo = item.ExpiresAt.HasValue
-            ? $"Expira em: {item.ExpiresAt.Value:dd/MM/yyyy}"
-            : "Licença Vitalícia";
-        string slugInfo = $"slug: {item.Slug}";
-        if (!string.IsNullOrEmpty(item.LicenseKey))
-        {
-            slugInfo += $" // {item.LicenseKey}";
-        }
-
-        var detailsBlock = new TextBlock
-        {
-            Text = $"{slugInfo} • {expInfo}",
-            FontSize = 11,
-            Foreground = new SolidColorBrush(Color.FromRgb(148, 163, 184)),
-            Margin = new Thickness(0, 4, 0, 0)
-        };
-        infoPanel.Children.Add(detailsBlock);
-        Grid.SetColumn(infoPanel, 0);
-        grid.Children.Add(infoPanel);
-
-        // Status Badge
-        bool active = item.IsActive();
-        var statusBadge = new Border
-        {
-            Background = active
-                ? new SolidColorBrush(Color.FromArgb(40, 74, 222, 128))
-                : new SolidColorBrush(Color.FromArgb(40, 248, 113, 113)),
-            BorderBrush = active
-                ? new SolidColorBrush(Color.FromRgb(74, 222, 128))
-                : new SolidColorBrush(Color.FromRgb(248, 113, 113)),
-            BorderThickness = new Thickness(1),
-            CornerRadius = new CornerRadius(4),
-            Padding = new Thickness(8, 4, 8, 4),
-            VerticalAlignment = VerticalAlignment.Center
-        };
-        statusBadge.Child = new TextBlock
-        {
-            Text = active ? "ATIVO" : item.Status.ToUpperInvariant(),
-            FontSize = 11,
-            FontWeight = FontWeights.Bold,
-            Foreground = active
-                ? new SolidColorBrush(Color.FromRgb(74, 222, 128))
-                : new SolidColorBrush(Color.FromRgb(248, 113, 113))
-        };
-        Grid.SetColumn(statusBadge, 1);
-        grid.Children.Add(statusBadge);
-
-        card.Child = grid;
-        return card;
-    }
-
-    private async Task HandleBrowserLoginAsync()
-    {
-        SetFeedback("Abrindo navegador para login seguro via Node.aec...", Color.FromRgb(56, 189, 248));
+        SetFeedback("Abrindo o navegador para você entrar com segurança...", UiTheme.Info);
         _btnLogin.IsEnabled = false;
 
         try
@@ -492,7 +390,7 @@ public class ConnectorWindow : Window
             var authService = new DesktopAuthService();
             string userToken = await authService.LoginViaBrowserAsync().ConfigureAwait(true);
 
-            SetFeedback("Autenticado! Sincronizando licenças da sua conta...", Color.FromRgb(56, 189, 248));
+            SetFeedback("Pronto! Buscando suas licenças...", UiTheme.Info);
             using var client = new ConnectorApiClient();
             var syncResult = await client.SyncMasterEntitlementsAsync(userToken).ConfigureAwait(true);
 
@@ -500,16 +398,16 @@ public class ConnectorWindow : Window
             {
                 var payload = LeaseStorage.ParseJwtPayload(syncResult.LeaseToken ?? string.Empty);
                 LeaseStorage.SaveSession(payload?.Sub, userToken);
-                SetFeedback($"Sucesso! {syncResult.GrantedCount} produto(s) licenciados nesta estação.", Color.FromRgb(74, 222, 128));
+                SetFeedback($"Tudo pronto! {syncResult.GrantedCount} plugin(s) liberado(s) neste computador.", UiTheme.Success);
             }
             else
             {
-                SetFeedback($"Falha na sincronização: {syncResult.Message}", Color.FromRgb(248, 113, 113));
+                SetFeedback($"Não foi possível buscar suas licenças: {syncResult.Message}", UiTheme.Error);
             }
         }
         catch (Exception ex)
         {
-            SetFeedback($"Erro durante o login: {ex.Message}", Color.FromRgb(248, 113, 113));
+            SetFeedback($"Algo não saiu como esperado: {ex.Message}", UiTheme.Error);
         }
         finally
         {
@@ -518,9 +416,9 @@ public class ConnectorWindow : Window
         }
     }
 
-    private async Task HandleSyncAsync()
+    private async System.Threading.Tasks.Task HandleSyncAsync()
     {
-        SetFeedback("Sincronizando concessões com a nuvem Node.aec...", Color.FromRgb(56, 189, 248));
+        SetFeedback("Atualizando suas licenças...", UiTheme.Info);
         _btnSync.IsEnabled = false;
 
         try
@@ -540,16 +438,16 @@ public class ConnectorWindow : Window
 
             if (result.Success)
             {
-                SetFeedback("Sincronização concluída com sucesso.", Color.FromRgb(74, 222, 128));
+                SetFeedback("Licenças atualizadas com sucesso.", UiTheme.Success);
             }
             else
             {
-                SetFeedback($"Falha ao sincronizar: {result.Message}", Color.FromRgb(248, 113, 113));
+                SetFeedback($"Não foi possível atualizar agora: {result.Message}", UiTheme.Error);
             }
         }
         catch (Exception ex)
         {
-            SetFeedback($"Erro de rede: {ex.Message}", Color.FromRgb(248, 113, 113));
+            SetFeedback($"Sem conexão no momento: {ex.Message}", UiTheme.Error);
         }
         finally
         {
@@ -558,16 +456,16 @@ public class ConnectorWindow : Window
         }
     }
 
-    private async Task HandleActivateKeyAsync()
+    private async System.Threading.Tasks.Task HandleActivateKeyAsync()
     {
         string key = _txtManualKey.Text?.Trim() ?? string.Empty;
         if (string.IsNullOrWhiteSpace(key))
         {
-            SetFeedback("Informe uma chave válida no formato NAEC-XXXX-XXXX-XXXX-XXXX.", Color.FromRgb(248, 113, 113));
+            SetFeedback("Digite a chave enviada para você (começa com NAEC-...).", UiTheme.Error);
             return;
         }
 
-        SetFeedback("Ativando licença na nuvem...", Color.FromRgb(56, 189, 248));
+        SetFeedback("Ativando sua chave...", UiTheme.Info);
         _btnActivateKey.IsEnabled = false;
 
         try
@@ -578,16 +476,16 @@ public class ConnectorWindow : Window
             if (result.Success)
             {
                 _txtManualKey.Clear();
-                SetFeedback(result.Message, Color.FromRgb(74, 222, 128));
+                SetFeedback("Chave ativada! Seus plugins foram liberados.", UiTheme.Success);
             }
             else
             {
-                SetFeedback(result.Message, Color.FromRgb(248, 113, 113));
+                SetFeedback(result.Message, UiTheme.Error);
             }
         }
         catch (Exception ex)
         {
-            SetFeedback($"Erro ao ativar chave: {ex.Message}", Color.FromRgb(248, 113, 113));
+            SetFeedback($"Não foi possível ativar agora: {ex.Message}", UiTheme.Error);
         }
         finally
         {
@@ -600,8 +498,8 @@ public class ConnectorWindow : Window
     {
         var dlg = new OpenFileDialog
         {
-            Filter = "Arquivos de Lease Node.aec (*.lease;*.jwt)|*.lease;*.jwt|Todos os Arquivos (*.*)|*.*",
-            Title = "Importar Concessão de Licença Offline"
+            Filter = "Arquivos de licença Node.aec (*.lease;*.jwt)|*.lease;*.jwt|Todos os arquivos (*.*)|*.*",
+            Title = "Importar arquivo de licença"
         };
 
         if (dlg.ShowDialog() == true)
@@ -612,17 +510,17 @@ public class ConnectorWindow : Window
                 var payload = LeaseStorage.ParseJwtPayload(content);
                 if (payload == null)
                 {
-                    SetFeedback("O arquivo selecionado não contém um token JWT válido.", Color.FromRgb(248, 113, 113));
+                    SetFeedback("Este arquivo não parece ser uma licença válida.", UiTheme.Error);
                     return;
                 }
 
                 LeaseStorage.SaveMasterLease(content);
-                SetFeedback("Lease offline importado com sucesso!", Color.FromRgb(74, 222, 128));
+                SetFeedback("Licença importada com sucesso!", UiTheme.Success);
                 RefreshUiFromStorage();
             }
             catch (Exception ex)
             {
-                SetFeedback($"Falha ao importar arquivo: {ex.Message}", Color.FromRgb(248, 113, 113));
+                SetFeedback($"Não foi possível importar: {ex.Message}", UiTheme.Error);
             }
         }
     }
@@ -630,8 +528,8 @@ public class ConnectorWindow : Window
     private void HandleLogout()
     {
         var confirm = MessageBox.Show(
-            "Deseja desconectar sua conta Node.aec desta máquina?\n\nAs concessões de licença locais serão removidas até o próximo login.",
-            "Node.aec Connector",
+            "Deseja sair da sua conta neste computador?\n\nSeus plugins ficarão bloqueados até o próximo login.",
+            "Sair da conta",
             MessageBoxButton.YesNo,
             MessageBoxImage.Question);
 
@@ -639,7 +537,7 @@ public class ConnectorWindow : Window
         {
             LeaseStorage.ClearMasterLease();
             LeaseStorage.ClearSession();
-            SetFeedback("Conta desconectada com sucesso.", Color.FromRgb(148, 163, 184));
+            SetFeedback("Você saiu da conta.", UiTheme.TextSecondary);
             RefreshUiFromStorage();
         }
     }
@@ -647,7 +545,7 @@ public class ConnectorWindow : Window
     private void SetFeedback(string message, Color color)
     {
         _txtFeedback.Text = message;
-        _txtFeedback.Foreground = new SolidColorBrush(color);
+        _txtFeedback.Foreground = UiTheme.Brush(color);
     }
 
     private void OpenCatalog()
@@ -665,7 +563,7 @@ public class ConnectorWindow : Window
         }
     }
 
-    private static ImageSource? LoadAppIcon()
+    private static System.Windows.Media.ImageSource? LoadAppIcon()
     {
         try
         {

@@ -16,8 +16,9 @@ namespace NodeAec.Connector;
 
 /// <summary>
 /// Ponto de entrada do plugin Node.aec Connector para Autodesk Revit.
-/// Configura a aba canônica 'Node.aec', painel 'Conector', botões de governança,
-/// deduplicação de abas via AdWindows e heartbeat em segundo plano.
+/// Configura a aba canônica 'Node.aec', painel 'Conector' (botão grande "Minha Conta"
+/// + botões pequenos empilhados "Meus Plugins" e "Explorar Catálogo"), deduplicação
+/// de abas via AdWindows e heartbeat em segundo plano.
 /// </summary>
 public class App : IExternalApplication
 {
@@ -69,31 +70,31 @@ public class App : IExternalApplication
         // 3. Obtém ou cria o painel de governança "Conector"
         Autodesk.Revit.UI.RibbonPanel connectorPanel = GetOrCreatePanel(application, TabName, PanelName);
 
-        // 4. Botão Principal: "Minhas Licenças"
+        // 4. Botão principal (grande): "Minha Conta"
         var btnManageData = new PushButtonData(
             "NodeAec_ManageConnector",
-            "Minhas\nLicenças",
+            "Minha\nConta",
             assemblyPath,
             typeof(ManageConnectorCommand).FullName ?? string.Empty)
         {
-            ToolTip = "Gerenciamento centralizado de licenças, produtos ativos e sincronização Node.aec."
+            ToolTip = "Gerencie sua conta Node.aec: entrar, sair e atualizar suas licenças."
         };
         LoadButtonIcons(btnManageData, addInDir);
         AddButtonIfMissing(connectorPanel, btnManageData);
 
-        // 5. Botão Secundário: "Entrar / Conta"
-        var btnLoginData = new PushButtonData(
-            "NodeAec_LoginConnector",
-            "Conectar\nConta",
+        // 5-6. Botões secundários (pequenos, empilhados): "Meus Plugins" + "Explorar Catálogo".
+        // "Meus Plugins" fica desabilitado até o login (RequiresLoginAvailability).
+        var btnPluginsData = new PushButtonData(
+            "NodeAec_ManagePlugins",
+            "Meus\nPlugins",
             assemblyPath,
-            typeof(LoginCommand).FullName ?? string.Empty)
+            typeof(ManagePluginsCommand).FullName ?? string.Empty)
         {
-            ToolTip = "Entrar com sua conta Node.aec no navegador via login seguro (SSO)."
+            ToolTip = "Veja os plugins vinculados à sua conta, com link para cada produto.",
+            AvailabilityClassName = typeof(RequiresLoginAvailability).FullName ?? string.Empty
         };
-        LoadButtonIcons(btnLoginData, addInDir);
-        AddButtonIfMissing(connectorPanel, btnLoginData);
+        LoadButtonIcons(btnPluginsData, addInDir);
 
-        // 6. Botão de Catálogo
         var btnCatalogData = new PushButtonData(
             "NodeAec_ExploreCatalog",
             "Explorar\nCatálogo",
@@ -103,7 +104,7 @@ public class App : IExternalApplication
             ToolTip = "Explorar plugins, famílias e templates no marketplace Node.aec."
         };
         LoadButtonIcons(btnCatalogData, addInDir);
-        AddButtonIfMissing(connectorPanel, btnCatalogData);
+        AddStackedButtonsIfMissing(connectorPanel, btnPluginsData, btnCatalogData);
 
         // 7. Hooks defensivos de ciclo de vida do Revit Ribbon
         try
@@ -218,6 +219,34 @@ public class App : IExternalApplication
         }
     }
 
+    private static void AddStackedButtonsIfMissing(Autodesk.Revit.UI.RibbonPanel panel, PushButtonData first, PushButtonData second)
+    {
+        try
+        {
+            var existing = panel.GetItems()
+                .Select(i => i.Name)
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+            bool firstMissing = !existing.Contains(first.Name);
+            bool secondMissing = !existing.Contains(second.Name);
+
+            if (!firstMissing && !secondMissing) return;
+
+            // Empilha os dois botões pequenos; se só faltar um, adiciona avulso.
+            if (firstMissing && secondMissing)
+            {
+                panel.AddStackedItems(first, second);
+                return;
+            }
+
+            if (firstMissing) AddButtonIfMissing(panel, first);
+            if (secondMissing) AddButtonIfMissing(panel, second);
+        }
+        catch
+        {
+        }
+    }
+
     public static void DeduplicateRibbonTabs(string targetTitle)
     {
         try
@@ -261,6 +290,10 @@ public class App : IExternalApplication
         }
     }
 
+    /// <summary>
+    /// Remove elementos legados da Ribbon: abas "License"/"Licensing" e o botão
+    /// "Conectar Conta" (aposentado em favor de "Minha Conta" + "Meus Plugins").
+    /// </summary>
     public static void CleanRogueRibbonElements()
     {
         try
@@ -286,6 +319,27 @@ public class App : IExternalApplication
                     ribbon.Tabs.Remove(rogueTab);
                 }
                 catch { }
+            }
+
+            // Remove o botão legado "Conectar Conta" de qualquer painel onde persista.
+            foreach (var tab in ribbon.Tabs)
+            {
+                foreach (var panel in tab.Panels)
+                {
+                    try
+                    {
+                        var legacyItems = panel.Source?.Items
+                            ?.Where(item => string.Equals(item.Id, "NodeAec_LoginConnector", StringComparison.OrdinalIgnoreCase))
+                            .ToList();
+                        if (legacyItems == null) continue;
+
+                        foreach (var legacy in legacyItems)
+                        {
+                            panel.Source.Items.Remove(legacy);
+                        }
+                    }
+                    catch { }
+                }
             }
         }
         catch

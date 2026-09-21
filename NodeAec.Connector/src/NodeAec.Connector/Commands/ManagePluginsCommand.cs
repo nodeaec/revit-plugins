@@ -6,14 +6,15 @@ using NodeAec.Connector.UI;
 namespace NodeAec.Connector.Commands;
 
 /// <summary>
-/// Comando Revit para abrir a janela "Minha Conta" do Node.aec Connector.
+/// Comando Revit para abrir a janela "Meus Plugins" com os produtos vinculados à conta.
+/// Fica indisponível na Ribbon até o login (ver <see cref="RequiresLoginAvailability"/>).
 /// </summary>
 [Transaction(TransactionMode.Manual)]
-public class ManageConnectorCommand : IExternalCommand
+public class ManagePluginsCommand : IExternalCommand
 {
     public Result Execute(ExternalCommandData commandData, ref string message, ElementSet elements)
     {
-        ConnectorWindow.Open(commandData.Application);
+        PluginsWindow.Open(commandData.Application);
         return Result.Succeeded;
     }
 }

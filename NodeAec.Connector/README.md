@@ -31,9 +31,11 @@ NodeAec.Connector/
 │   ├── NodeAec.Connector.addin   # Manifesto do Revit com AddInId e FullClassName
 │   ├── App.cs                    # IExternalApplication: Ribbon Tab, hooks de ciclo de vida
 │   ├── Auth/
-│   │   └── DesktopAuthService.cs # Loopback listener, porta efêmera e CSRF state
+│   │   ├── DesktopAuthService.cs # Loopback listener, porta efêmera e CSRF state
+│   │   └── LoginRequirement.cs   # Verificação headless de sessão (botão Meus Plugins)
 │   ├── Client/
-│   │   └── ConnectorApiClient.cs # Cliente HTTP para API Node.aec (/account/entitlements/lease)
+│   │   ├── ConnectorApiClient.cs # Cliente HTTP para API Node.aec (/account/entitlements/lease)
+│   │   └── ProductLinks.cs       # Links públicos dos produtos (nodeaec.com.br/products/{slug})
 │   ├── Config/
 │   │   └── ConnectorConfig.cs    # URLs e constantes oficiais
 │   ├── Storage/
@@ -47,11 +49,14 @@ NodeAec.Connector/
 │   │   ├── MasterLeasePayload.cs # Claims do JWT Ed25519
 │   │   └── SyncResult.cs         # Resultado de sincronização
 │   ├── Commands/
-│   │   ├── ManageConnectorCommand.cs # Abre janela do Connector
-│   │   ├── LoginCommand.cs           # Dispara login via navegador
-│   │   └── ExploreCatalogCommand.cs  # Abre catálogo web
+│   │   ├── ManageConnectorCommand.cs  # Abre a janela Minha Conta
+│   │   ├── ManagePluginsCommand.cs    # Abre a janela Meus Plugins
+│   │   ├── RequiresLoginAvailability.cs # Desabilita Meus Plugins antes do login
+│   │   └── ExploreCatalogCommand.cs   # Abre catálogo web
 │   ├── UI/
-│   │   └── ConnectorWindow.cs    # Interface WPF escura e responsiva
+│   │   ├── UiTheme.cs           # Paleta light mode da web Node.aec
+│   │   ├── ConnectorWindow.cs   # Janela Minha Conta (conta, licenças, chave recolhida)
+│   │   └── PluginsWindow.cs     # Janela Meus Plugins (lista + links dos produtos)
 │   └── Resources/
 │       ├── nodeaec-16.png
 │       └── nodeaec-32.png
@@ -60,6 +65,8 @@ NodeAec.Connector/
     ├── HardwareIdTests.cs
     ├── DesktopAuthServiceTests.cs
     ├── LeaseStorageTests.cs
+    ├── LoginRequirementTests.cs
+    ├── ProductLinksTests.cs
     ├── ConnectorApiClientTests.cs
     ├── NodeAecGateTests.cs
     └── TestHelpers.cs
