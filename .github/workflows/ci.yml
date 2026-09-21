@@ -1,6 +1,6 @@
 # Unit tests only (net8.0, no Revit required).
-# The plugin itself builds on Windows with Revit 2026 installed via
-# NodeAec.Licensing.Sample/scripts/release.ps1 (not run here).
+# Plugins build on Windows with Revit 2026 installed via
+# their respective scripts/release.ps1 (not run here).
 name: ci
 
 on:
@@ -19,5 +19,7 @@ jobs:
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: 8.0.x
-      - name: dotnet test
+      - name: dotnet test (NodeAec.Licensing.Sample)
         run: dotnet test NodeAec.Licensing.Sample/tests/NodeAec.Licensing.Tests/NodeAec.Licensing.Tests.csproj -c Release --collect:"XPlat Code Coverage"
+      - name: dotnet test (NodeAec.Connector)
+        run: dotnet test NodeAec.Connector/tests/NodeAec.Connector.Tests/NodeAec.Connector.Tests.csproj -c Release --collect:"XPlat Code Coverage"

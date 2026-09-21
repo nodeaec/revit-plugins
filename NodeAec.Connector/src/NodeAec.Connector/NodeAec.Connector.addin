@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RevitAddIns>
+  <AddIn Type="Application">
+    <Name>Node.aec Connector</Name>
+    <Assembly>NodeAec.Connector.dll</Assembly>
+    <AddInId>4B8E1A2C-9F3D-4E5A-8B7C-1D2E3F4A5B6C</AddInId>
+    <FullClassName>NodeAec.Connector.App</FullClassName>
+    <VendorId>NODEAEC</VendorId>
+    <VendorDescription>Node.aec — https://nodeaec.com.br</VendorDescription>
+  </AddIn>
+</RevitAddIns>

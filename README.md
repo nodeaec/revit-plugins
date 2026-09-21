@@ -21,7 +21,21 @@ revit-plugins/
 ├── AGENTS.md                          # Diretrizes e regras para agentes de IA neste repositório
 ├── README.md                          # Este documento (visão geral do repositório)
 │
-└── NodeAec.Licensing.Sample/          # Exemplo canônico de integração de licenciamento
+├── NodeAec.Connector/                 # Add-in Hub central de governança desktop e Ribbon unificada
+│   ├── README.md                      # Documentação completa do Connector
+│   ├── NodeAec.Connector.sln          # Solution (.NET 8 / Revit 2026)
+│   ├── scripts/
+│   │   └── release.ps1                # Script de compilação, empacotamento e deploy local
+│   ├── src/NodeAec.Connector/
+│   │   ├── Auth/                      # DesktopAuthService (Browser SSO Loopback RFC 8252)
+│   │   ├── Client/                    # ConnectorApiClient (Master Entitlements Lease)
+│   │   ├── Gate/                      # NodeAecGate (Micro-SDK de validação local < 1ms)
+│   │   ├── Storage/                   # LeaseStorage (Persistência DPAPI %APPDATA%\NodeAec)
+│   │   ├── UI/                        # ConnectorWindow (Interface WPF moderna)
+│   │   └── App.cs                     # IExternalApplication (Ribbon Node.aec e deduplicação)
+│   └── tests/NodeAec.Connector.Tests/ # Testes unitários (net8.0, CI-safe)
+│
+└── NodeAec.Licensing.Sample/          # Exemplo canônico de integração de licenciamento para plugins
     ├── AGENTS.md                      # Guia do agente para integrar licenciamento em plugins externos
     ├── README.md                      # Guia passo a passo de integração para humanos
     ├── NodeAec.Licensing.Sample.sln   # Solution (.NET 8 / Revit 2026)
@@ -41,7 +55,15 @@ revit-plugins/
 
 ## 🚀 Projetos e Módulos
 
-### 1. `NodeAec.Licensing.Sample` (Acelerador de Licenciamento)
+### 1. `NodeAec.Connector` (Hub Desktop Central & Governança)
+Add-in centralizador de governança e Ribbon unificada `Node.aec` para Autodesk Revit.
+- **Browser SSO (RFC 8252)**: Login seguro no navegador padrão com Google OAuth e retorno por loopback local.
+- **Master Entitlements Lease**: Sincronização consolidada de todos os produtos do usuário em um único token assinado com Ed25519.
+- **Micro-SDK `NodeAecGate`**: Validação de autorização em plugins parceiros em menos de 1ms sem acessar rede.
+- **Tolerância Offline de 30 Dias**: Operação contínua desconectada e suporte a estações isoladas (*air-gapped*).
+- 📖 [Acessar Guia do Node.aec Connector (README.md)](NodeAec.Connector/README.md)
+
+### 2. `NodeAec.Licensing.Sample` (Acelerador de Licenciamento)
 Implementação de referência completa para proteção e distribuição de add-ins comerciais no Revit.
 - **Segurança Criptográfica**: Assinatura digital assimétrica Ed25519 (RFC 8032) permitindo validação offline por até 30 dias.
 - **Proteção de Hardware (Machine Lock)**: Vinculação de token ao GUID da máquina via Windows DPAPI.

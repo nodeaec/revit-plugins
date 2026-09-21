@@ -1,0 +1,50 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>NodeAec.Connector</RootNamespace>
+    <AssemblyName>NodeAec.Connector</AssemblyName>
+    <Description>Node.aec Connector: Central desktop governance add-in and unified Ribbon for Autodesk Revit.</Description>
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <UseWPF>true</UseWPF>
+    <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Resolved from the local Revit 2026 install. Do not copy to output. -->
+    <Reference Include="RevitAPI">
+      <HintPath>C:\Program Files\Autodesk\Revit 2026\RevitAPI.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="RevitAPIUI">
+      <HintPath>C:\Program Files\Autodesk\Revit 2026\RevitAPIUI.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="AdWindows">
+      <HintPath>C:\Program Files\Autodesk\Revit 2026\AdWindows.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- ProtectedData (DPAPI) on .NET 8 -->
+    <PackageReference Include="System.Security.Cryptography.ProtectedData" Version="8.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Update="Resources\*.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
+  <Target Name="CopyDependenciesToOutput" AfterTargets="Build">
+    <ItemGroup>
+      <DpapiDll Include="$(UserProfile)\.nuget\packages\system.security.cryptography.protecteddata\8.0.0\lib\net8.0\System.Security.Cryptography.ProtectedData.dll" />
+    </ItemGroup>
+    <Copy SourceFiles="@(DpapiDll)" DestinationFolder="$(TargetDir)" SkipUnchangedFiles="true" Condition="Exists('@(DpapiDll)')" />
+  </Target>
+
+</Project>

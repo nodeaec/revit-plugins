@@ -1,0 +1,32 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <IsPackable>false</IsPackable>
+    <RootNamespace>NodeAec.Connector.Tests</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.11.0" />
+    <PackageReference Include="Microsoft.Win32.Registry" Version="5.0.0" />
+    <PackageReference Include="System.Security.Cryptography.ProtectedData" Version="8.0.0" />
+    <PackageReference Include="coverlet.collector" Version="6.0.2" />
+    <PackageReference Include="xunit" Version="2.9.2" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="2.8.2" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Include="..\..\src\NodeAec.Connector\Hardware\HardwareId.cs" Link="LinkedSources\Hardware\HardwareId.cs" />
+    <Compile Include="..\..\src\NodeAec.Connector\Models\EntitlementItem.cs" Link="LinkedSources\Models\EntitlementItem.cs" />
+    <Compile Include="..\..\src\NodeAec.Connector\Models\MasterLeasePayload.cs" Link="LinkedSources\Models\MasterLeasePayload.cs" />
+    <Compile Include="..\..\src\NodeAec.Connector\Models\SyncResult.cs" Link="LinkedSources\Models\SyncResult.cs" />
+    <Compile Include="..\..\src\NodeAec.Connector\Config\ConnectorConfig.cs" Link="LinkedSources\Config\ConnectorConfig.cs" />
+    <Compile Include="..\..\src\NodeAec.Connector\Storage\LeaseStorage.cs" Link="LinkedSources\Storage\LeaseStorage.cs" />
+    <Compile Include="..\..\src\NodeAec.Connector\Auth\DesktopAuthService.cs" Link="LinkedSources\Auth\DesktopAuthService.cs" />
+    <Compile Include="..\..\src\NodeAec.Connector\Client\ConnectorApiClient.cs" Link="LinkedSources\Client\ConnectorApiClient.cs" />
+    <Compile Include="..\..\src\NodeAec.Connector\Gate\NodeAecGate.cs" Link="LinkedSources\Gate\NodeAecGate.cs" />
+  </ItemGroup>
+
+</Project>

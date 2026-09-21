@@ -1,0 +1,8 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/NodeAec.Connector/NodeAec.Connector.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/NodeAec.Connector.Tests/NodeAec.Connector.Tests.csproj" />
+  </Folder>
+</Solution>

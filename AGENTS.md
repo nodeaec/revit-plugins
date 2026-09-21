@@ -1,4 +1,4 @@
-# Node.aec // Revit Plugins — Agent Guide
+# AGENTS.md — Diretrizes de Engenharia e Governança para Agentes de IA
 
 Guia de engenharia canônico para agentes autônomos de IA (Antigravity, Claude Code, Cursor, OpenCode, Copilot) que desenvolvem, mantêm ou refatoram código dentro do repositório **`nodeaec/revit-plugins`**.
 
@@ -10,6 +10,18 @@ Repositório oficial: [github.com/nodeaec/revit-plugins](https://github.com/node
 
 O repositório `revit-plugins` hospeda códigos públicos, SDKs, add-ins de referência e ferramentas comunitárias da **Node.aec** para Autodesk Revit.
 Sua meta é acelerar o ecossistema de desenvolvedores AEC/BIM, padronizando a integração com a plataforma Node.aec (licenciamento, catálogo, atualizações) e servindo de referência de engenharia para plugins profissionais.
+
+### Projetos Principais no Repositório
+
+1. **`NodeAec.Connector`**:
+   - O **Hub central de governança desktop** e Ribbon unificado da Node.aec para o Autodesk Revit.
+   - Gerencia autenticação SSO via navegador (RFC 8252 loopback), sincronização do lease mestre de entitlements (`entitlements.lease`), interface de usuário para ativação manual de chaves e importação de leases offline.
+   - Fornece o micro-SDK `NodeAecGate` (`NodeAecGate.Validate(slug)`), permitindo que plugins de terceiros validem direitos em `< 1ms` de forma segura, local e sem chamadas de rede bloqueantes.
+   - Gerencia a aba canônica **`Node.aec`** e deduplicação via `Autodesk.Windows.ComponentManager`.
+
+2. **`NodeAec.Licensing.Sample`**:
+   - Add-in de demonstração e referência prática para desenvolvedores de plugins Revit.
+   - Exemplifica como proteger comandos comerciais (`IExternalCommand`), validar licenças no backend e gerenciar fluxo offline de licenciamento pontual.
 
 > [!NOTE]
 > Se o seu objetivo for instruir como integrar o licenciamento Node.aec em um **plugin externo de um usuário**, consulte o guia específico em [`NodeAec.Licensing.Sample/AGENTS.md`](NodeAec.Licensing.Sample/AGENTS.md) ou a skill [`.agents/skills/licensing-integrate`](.agents/skills/licensing-integrate/SKILL.md). Este arquivo atual rege o desenvolvimento **interno deste repositório**.
@@ -49,7 +61,7 @@ Este repositório disponibiliza habilidades modulares especializadas para agente
 - **Interface Gráfica**: WPF (`UseWPF = true`), código limpo em C# com layouts nativos
 - **Proteção de Dados**: Windows DPAPI (`System.Security.Cryptography.ProtectedData`)
 - **Criptografia Assimétrica**: Ed25519 (EdDSA / RFC 8032) para validação offline de leases assinados
-- **Build System**: .NET CLI (`dotnet build`) e scripts de empacotamento em PowerShell (`scripts/release.ps1`)
+- **Build System**: .NET CLI (`dotnet build`, `dotnet test`) e scripts de empacotamento em PowerShell (`scripts/release.ps1`)
 
 ---
 
@@ -57,7 +69,7 @@ Este repositório disponibiliza habilidades modulares especializadas para agente
 
 ### 1. Ribbon do Revit: Aba Canônica Obrigatória `Node.aec`
 - **Aba Única**: Todas as ferramentas, add-ins e componentes criados neste repositório **DEVEM** ser adicionados exclusivamente na aba **`Node.aec`** (`TabName = "Node.aec"`).
-- **Sem Abas Fragmentadas**: Nunca crie abas separadas para plugins individuais. Organize os recursos em painéis temáticos dentro de `Node.aec` (ex.: `"Licenciamento"`, `"Automação"`, etc.).
+- **Sem Abas Fragmentadas**: Nunca crie abas separadas para plugins individuais. Organize os recursos em painéis temáticos dentro de `Node.aec` (ex.: `"Conector"`, `"Licenciamento"`, etc.).
 - **Deduplicação de Abas**: Utilize os hooks do `Autodesk.Windows.ComponentManager` (AdWindows) para evitar abas duplicadas ou painéis fantasmas ao recarregar add-ins.
 
 ### 2. Dependências e Binários do Revit
@@ -82,23 +94,31 @@ Este repositório disponibiliza habilidades modulares especializadas para agente
 Todas as alterações devem ser validadas compilando a solution relevante e verificando ausência de erros:
 
 ```powershell
-# Compilar em modo Release
-dotnet build NodeAec.Licensing.Sample\NodeAec.Licensing.Sample.sln -c Release
+# 1. Node.aec Connector (Hub Central)
+# Compilar e rodar testes unitários headless
+dotnet build NodeAec.Connector\NodeAec.Connector.sln -c Release
+dotnet test NodeAec.Connector\NodeAec.Connector.sln -c Release
 
 # Empacotar e instalar no Revit 2026 local
+powershell -ExecutionPolicy Bypass -File NodeAec.Connector\scripts\release.ps1 -Version 1.0.0 -Install
+
+# 2. NodeAec.Licensing.Sample (Add-in de Exemplo)
+dotnet build NodeAec.Licensing.Sample\NodeAec.Licensing.Sample.sln -c Release
 powershell -ExecutionPolicy Bypass -File NodeAec.Licensing.Sample\scripts\release.ps1 -Version 1.0.0 -Install
 ```
 
 Critérios de Aceite para Modificações:
 - Compilação limpa: **0 Erros**.
+- Testes unitários: 100% passando.
 - Nenhum assembly do Revit (`RevitAPI*.dll`) dentro da pasta `release/` ou `stage/`.
-- A DLL `System.Security.Cryptography.ProtectedData.dll` deve estar presente no payload final.
+- A DLL `System.Security.Cryptography.ProtectedData.dll` deve estar presente no payload final do add-in.
 
 ---
 
 ## 📦 Convenções de Git e Commits
 
 - Utilize o padrão Conventional Commits:
+  - `feat(connector): ...`
   - `feat(licensing): ...`
   - `fix(ribbon): ...`
   - `docs(readme): ...`
