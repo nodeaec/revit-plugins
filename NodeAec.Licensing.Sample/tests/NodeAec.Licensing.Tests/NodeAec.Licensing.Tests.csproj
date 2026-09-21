@@ -1,24 +1,12 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
-  <!--
-    Unit-only test suite for the licensing core (CI-safe, no Revit required).
-
-    Strategy: link the Revit-independent sources (Client + Config) instead of
-    ProjectReference to the plugin. The plugin targets net8.0-windows and
-    references RevitAPI from a local Windows install, so it cannot build on
-    Linux CI. The linked files are pure .NET (HTTP + JSON + SHA-256) plus two
-    Windows-only APIs used defensively:
-      - Microsoft.Win32.Registry (GetMachineId falls back to MachineName)
-      - ProtectedData/DPAPI (cache read/write fail silently when unavailable)
-    Revit-dependent code (App, Commands, UI) is intentionally NOT linked and
-    therefore not covered here; that is integration-test territory.
-  -->
   <PropertyGroup>
     <TargetFramework>net8.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <IsPackable>false</IsPackable>
     <RootNamespace>NodeAec.Licensing.Tests</RootNamespace>
+    <NoWarn>$(NoWarn);CA1416</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>
@@ -31,8 +19,8 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Compile Include="..\..\src\NodeAec.Licensing.Sample\Client\NodeAecLicenseClient.cs" Link="LinkedSources\Client\NodeAecLicenseClient.cs" />
-    <Compile Include="..\..\src\NodeAec.Licensing.Sample\Config\LicenseConfig.cs" Link="LinkedSources\Config\LicenseConfig.cs" />
+    <Compile Include="..\..\src\NodeAec.Licensing.Sample\Gate\HardwareId.cs" Link="LinkedSources\HardwareId.cs" />
+    <Compile Include="..\..\src\NodeAec.Licensing.Sample\Gate\NodeAecGate.cs" Link="LinkedSources\NodeAecGate.cs" />
   </ItemGroup>
 
 </Project>

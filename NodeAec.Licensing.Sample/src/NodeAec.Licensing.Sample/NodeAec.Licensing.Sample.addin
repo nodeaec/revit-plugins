@@ -2,7 +2,7 @@
 <RevitAddIns>
   <AddIn Type="Application">
     <Name>Node.aec Licensing Sample</Name>
-    <Description>Node.aec lease licensing sample (activate/validate/deactivate + JWKS).</Description>
+    <Description>Node.aec partner plugin integration sample using Micro-SDK NodeAecGate.</Description>
     <Assembly>C:\ProgramData\Autodesk\Revit\Addins\2026\NodeAec.Licensing.Sample\NodeAec.Licensing.Sample.dll</Assembly>
     <AddInId>BD7B2E7B-F67C-4883-B086-02C14FF851FF</AddInId>
     <FullClassName>NodeAec.Licensing.Sample.App</FullClassName>

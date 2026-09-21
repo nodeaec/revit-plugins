@@ -1,181 +1,164 @@
-# Node.aec // Licensing Sample & Guia de Integração
+# Node.aec // Exemplo Canônico de Integração de Licenciamento
 
-Plugin de referência e guia didático de integração com o **Sistema de Licenciamento da Node.aec** para Autodesk Revit (.NET 8 / Revit 2026).
-
-Repositório oficial: [github.com/nodeaec/revit-plugins](https://github.com/nodeaec/revit-plugins)
+Implementação de referência para desenvolvedores e parceiros que desejam proteger e comercializar add-ins para **Autodesk Revit** (compatível com Revit 2025/2026+ em .NET 8) utilizando o ecossistema **Node.aec**.
 
 ---
 
-## 🎯 Sobre Este Plugin de Exemplo
+## 🏛️ Nova Arquitetura: Hub & Micro-Gate
 
-O `NodeAec.Licensing.Sample` é uma implementação mínima, limpa e funcional projetada para demonstrar como criadores de software e add-ins para Autodesk Revit podem monetizar, proteger e distribuir suas ferramentas comerciais na **Node.aec Store**.
+A partir da versão 2.0 da plataforma Node.aec, os plugins parceiros **não precisam mais** implementar clientes HTTP, gerenciar tokens na nuvem, lidar com formulários de login ou exibir janelas complexas de ativação de chaves.
 
-### O que este exemplo implementa:
-1. **Ribbon Canônica**: Cria a aba **`Node.aec`** > Painel **`Licenciamento`** > Botão **`Gerenciador de Licença`** com o ícone oficial da plataforma.
-2. **Interface WPF Moderna**: Janela limpa com verificação em tempo real, status da licença, cotas de postos (*seats*), resolução automática do nome do produto no catálogo e link direto para o site.
-3. **Criptografia Assimétrica Ed25519 (RFC 8032)**: Validação offline instantânea e segura sem dependência de internet.
-4. **Proteção de Hardware via Windows DPAPI**: Cofre local criptografado para tokens e chaves atrelado ao usuário do Windows.
-5. **Prevenção de Abas Duplicadas**: Tratamento de hooks do AdWindows (`ComponentManager`) para garantir estabilidade da Ribbon no Revit.
+Toda a governança de contas, login SSO via navegador (Google/Email), ativações de estações e sincronização de concessões (*leases*) é realizada de forma centralizada pelo **Node.aec Connector**.
 
----
-
-## 💡 Como Funciona o Modelo de Licenciamento
-
-O modelo de licenciamento da Node.aec combina máxima segurança com a melhor experiência de uso:
-
-- **Ativação Online Descomplicada**: O cliente insere a chave (`NAEC-XXXX-XXXX-XXXX-XXXX`). A API de produção valida a chave, controla a cota de máquinas ativas (*seats*) e retorna um **Lease Token** criptografado.
-- **Tolerância Offline por 30 Dias (Ed25519)**: O lease token é assinado digitalmente pelo servidor com **Ed25519**. O plugin valida a assinatura localmente com a chave pública SPKI embutida, permitindo trabalho ininterrupto em canteiros de obra ou viagens sem conexão.
-- **Machine Lock Inviolável**: O lease token é amarrado criptograficamente ao identificador de hardware exclusivo da estação (`MachineGuid` do Windows). O arquivo não pode ser clonado para outro computador.
-- **Cofre Local Criptografado (Windows DPAPI)**: Os tokens e metadados são salvos em `%AppData%\NodeAec\Licenses\` protegidos pelo subsistema `ProtectedData` do Windows, acessível unicamente pelo usuário logado.
-- **Heartbeat Transparente**: Em segundo plano, sem travar a navegação do Revit, o plugin renova a validade do lease periodicamente quando há conexão com a internet.
-- **Liberação de Vagas**: Se o usuário precisar trocar de computador, basta clicar em **"Desativar Posto"** na janela do gerenciador para liberar o assento instantaneamente no servidor.
-
----
-
-## 🤖 Como Usar Agentes de IA para Auto-Configurar a Integração
-
-Se você utiliza assistentes de programação ou agentes autônomos de IA (**Antigravity**, **Cursor**, **Claude Code**, **GitHub Copilot**, **OpenCode**), você pode delegar a integração completa do licenciamento ao seu agente com zero esforço manual.
-
-O arquivo [`AGENTS.md`](AGENTS.md) dentro desta pasta contém o guia canônico com a entrevista de alinhamento técnico (*Fase de Grilling*) e as receitas de código prontas.
-
-### Prompt para Copiar e Enviar ao seu Agente de IA:
-
-Cole o prompt abaixo no chat do seu assistente de IA dentro da pasta do seu plugin:
-
-```text
-Você é o meu engenheiro sênior de integração.
-Por favor, leia as instruções e o protocolo de integração definidos em:
-https://raw.githubusercontent.com/nodeaec/revit-plugins/main/NodeAec.Licensing.Sample/AGENTS.md
-
-Antes de escrever qualquer código, execute a Fase de Grilling descrita no documento: faça-me as perguntas de alinhamento técnico (versão do Revit, runtime .NET, resolução de referências da RevitAPI, slug do produto e política de bloqueio) fornecendo sua recomendação para cada item.
-
-Lembre-se das regras inegociáveis:
-1. Use SEMPRE a API oficial de produção da Node.aec (https://api.nodeaec.com.br).
-2. Integre o plugin OBRIGATORIAMENTE na aba "Node.aec" do Revit (se o meu plugin já possuir painéis ou abas próprias, certifique-se de que tudo fique alocado na aba "Node.aec").
-
-Após o meu alinhamento, integre o cliente de licenciamento Node.aec no meu plugin de forma limpa, não-bloqueante e segura.
+```
++-----------------------------------------------------------------------------+
+|                               Autodesk Revit                                |
+|                                                                             |
+|  [ Ribbon Tab: "Node.aec" ]                                                 |
+|                                                                             |
+|  +---------------------------+       +-----------------------------------+  |
+|  |     Node.aec Connector    |       |        Plugins Parceiros          |  |
+|  |     (Hub Centralizado)    |       |     (ex: Revit Automator)         |  |
+|  |                           |       |                                   |  |
+|  | - Browser SSO (RFC 8252)  |       |  public Result Execute(...)       |  |
+|  | - Gestão de assentos/PC   |       |  {                                |  |
+|  | - Heartbeat em background |       |      var chk = NodeAecGate        |  |
+|  | - Criptografia DPAPI      |       |                .Validate(slug);   |  |
+|  +-------------+-------------+       |      if (!chk.IsLicensed)         |  |
+|                |                     |          return Result.Cancelled; |  |
+|                | Grava Master Lease  |  }                                |  |
+|                v (DPAPI + Ed25519)   +-----------------+-----------------+  |
+|         +----------------------------------------------+                    |
+|         | %APPDATA%\NodeAec\entitlements.lease                              |
++---------+-------------------------------------------------------------------+
+          |                                               
+   HTTPS  | Heartbeat / Master Lease Sync         
+   (Sync) | (quando conectado à internet)                 
+          v                                               
++-----------------------------------------------------------------------------+
+|                        API Node.aec (Nuvem)                                 |
+|                     https://api.nodeaec.com.br                              |
++-----------------------------------------------------------------------------+
 ```
 
-O agente fará uma breve entrevista focada nas particularidades do seu build e aplicará as alterações de forma determinística no seu `.csproj`, `App.cs` e nos comandos a proteger.
+### Principais Vantagens para o Desenvolvedor:
+- **Zero Tráfego de Rede (< 1ms)**: A validação em comandos do Revit é instantânea e local. Não há latência ou risco de travar a interface gráfica do Revit durante a inicialização ou execução de ferramentas.
+- **Tolerância Offline por 30 Dias**: O token mestre armazenado em `%APPDATA%\NodeAec\entitlements.lease` garante que o usuário trabalhe desconectado sem interrupções.
+- **Machine Binding Inviolável**: Vinculação de hardware via SHA-256 (`MachineGuid` do Windows).
+- **Sem Telas Duplicadas**: O usuário tem uma única central de login e ativação na Ribbon (o painel `Conector` da aba `Node.aec`), garantindo experiência uniforme e profissional.
 
 ---
 
-## 🚀 Integração Manual Passo a Passo (para Desenvolvedores)
+## 🤖 Como Usar Agentes de IA para Integrar no seu Plugin
 
-Se você preferir realizar a integração manualmente no seu projeto C#, siga o roteiro abaixo:
+Se você utiliza agentes de IA (**Antigravity**, **Cursor**, **Claude Code**, **GitHub Copilot**, **OpenCode**), basta apontar para o guia canônico deste repositório:
 
-### 1. Copie os Arquivos Essenciais
-Copie da pasta [`src/NodeAec.Licensing.Sample/`](src/NodeAec.Licensing.Sample/) para o seu projeto:
-- `Client/NodeAecLicenseClient.cs`: Motor de comunicação HTTP, assinatura Ed25519 e persistência DPAPI.
-- `Config/LicenseConfig.cs`: Configuração central (URL da API de produção, chaves públicas e caminhos).
-- `Commands/ManageLicenseCommand.cs`: Comando que abre a janela de gerenciamento.
-- `UI/LicenseManagerWindow.cs`: Interface WPF pronta com status, nome do produto e links.
-- `Resources/`: Ícones oficiais da Node.aec para a Ribbon e barra de título.
+Cole o prompt abaixo no seu assistente dentro da pasta do seu plugin:
 
-### 2. Configure o Arquivo de Projeto (`.csproj`)
-Adicione a dependência do Windows DPAPI e a cópia de dependências locais:
+```text
+Você é meu engenheiro sênior de integração AEC.
+Por favor, consulte o guia canônico de integração em:
+https://raw.githubusercontent.com/nodeaec/revit-plugins/main/NodeAec.Licensing.Sample/AGENTS.md
+
+Integre o licenciamento Node.aec no meu plugin utilizando a arquitetura simplificada Hub & Micro-Gate (NodeAecGate).
+Regras inegociáveis:
+1. Copie o micro-SDK NodeAecGate e HardwareId para o meu projeto.
+2. Posicione todos os comandos comerciais na aba canônica "Node.aec" do Revit.
+3. Proteja os comandos usando NodeAecGate.Validate(slug), cancelando a execução e direcionando para o Node.aec Connector se a licença não estiver ativa.
+4. Não crie clientes HTTP nem janelas de login próprias.
+```
+
+---
+
+## 🚀 Integração Manual Passo a Passo
+
+### 1. Dependências no `.csproj`
+Adicione o pacote do Windows DPAPI e a diretiva de cópia de dependências locais:
 
 ```xml
 <ItemGroup>
-  <!-- Necessário para proteção do lease via Windows DPAPI -->
   <PackageReference Include="System.Security.Cryptography.ProtectedData" Version="8.0.0" />
 </ItemGroup>
 
 <PropertyGroup>
-  <!-- Garante que todas as DLLs de dependências acompanhem o plugin no build -->
   <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
 </PropertyGroup>
 ```
 
-### 3. Inicialização na Aba `Node.aec` (`App.cs`)
-No método `OnStartup` da sua classe `IExternalApplication`:
+### 2. Copie o Micro-SDK
+Copie os arquivos da pasta [`src/NodeAec.Licensing.Sample/Gate/`](src/NodeAec.Licensing.Sample/Gate/) para o seu plugin:
+- `NodeAecGate.cs`: Classe estática com o método `Validate(string productSlug)`.
+- `HardwareId.cs`: Gerador do identificador estável de hardware via SHA-256.
+
+### 3. Registro na Ribbon na Aba Canônica `Node.aec` (`App.cs`)
+No método `OnStartup` da sua classe `IExternalApplication`, adicione seus comandos sob a aba **`Node.aec`** em um painel temático do seu produto:
 
 ```csharp
 using Autodesk.Revit.UI;
-using NodeAec.Licensing.Client;
-using NodeAec.Licensing.Sample.Config;
 
 public class App : IExternalApplication
 {
-    private NodeAecLicenseClient? _licenseClient;
-
     public Result OnStartup(UIControlledApplication application)
     {
-        // 1. OBRIGATÓRIO: Utilizar sempre a aba oficial "Node.aec"
-        var tabName = "Node.aec";
+        const string tabName = "Node.aec";
         try { application.CreateRibbonTab(tabName); } catch { }
 
-        // Cria o painel de Licenciamento
-        var panel = application.CreateRibbonPanel(tabName, "Licenciamento");
-        var btnManage = new PushButtonData(
-            "NodeAec_ManageLicense",
-            "Gerenciador\nde Licença",
+        // Cria o painel próprio do seu produto
+        var panel = application.CreateRibbonPanel(tabName, "Minhas Ferramentas");
+        
+        var btn = new PushButtonData(
+            "MeuPlugin_Comando",
+            "Executar\nComando",
             typeof(App).Assembly.Location,
-            "MeuNamespace.Commands.ManageLicenseCommand"
+            "MeuNamespace.Commands.MeuComandoComercial"
         );
-        panel.AddItem(btnManage);
-
-        // 2. Heartbeat e validação transparente em segundo plano (não bloqueia o Revit)
-        _licenseClient = LicenseConfig.CreateClient();
-        System.Threading.Tasks.Task.Run(async () =>
-        {
-            try
-            {
-                await _licenseClient.ValidateLicenseAsync(allowOffline: true);
-            }
-            catch { }
-        });
+        panel.AddItem(btn);
 
         return Result.Succeeded;
     }
 
-    public Result OnShutdown(UIControlledApplication application)
-    {
-        _licenseClient?.Dispose();
-        return Result.Succeeded;
-    }
+    public Result OnShutdown(UIControlledApplication application) => Result.Succeeded;
 }
 ```
 
-### 4. Protegendo Comandos Comerciais (`IExternalCommand`)
-Em cada comando comercial que você deseja restringir:
+### 4. Protegendo um Comando Comercial (`IExternalCommand`)
+No método `Execute` de cada comando protegido:
 
 ```csharp
 using Autodesk.Revit.Attributes;
 using Autodesk.Revit.DB;
 using Autodesk.Revit.UI;
-using NodeAec.Licensing.Sample.Config;
-using NodeAec.Licensing.Sample.UI;
+using NodeAec.Licensing.Sample.Gate;
 
 [Transaction(TransactionMode.Manual)]
 public class MeuComandoComercial : IExternalCommand
 {
+    private const string ProductSlug = "meu-produto-slug";
+
     public Result Execute(ExternalCommandData commandData, ref string message, ElementSet elements)
     {
-        // Validação rápida (prioriza cache local assinado offline)
-        using var client = LicenseConfig.CreateClient();
-        var check = client.ValidateLicenseAsync(allowOffline: true).GetAwaiter().GetResult();
-
-        if (!check.IsValid)
+        // 1. Validação local instantânea (< 1ms, zero rede)
+        var check = NodeAecGate.Validate(ProductSlug);
+        if (!check.IsLicensed)
         {
             var dialog = new TaskDialog("Node.aec // Licença Necessária")
             {
-                MainInstruction = "Licença ativa necessária para executar este recurso.",
-                MainContent = check.ErrorMessage ?? "Ative o produto para utilizar as ferramentas completas.",
+                MainInstruction = "Licença ativa necessária para executar esta ferramenta.",
+                MainContent = $"{check.Message}\n\nAbra o Node.aec Connector na Ribbon para entrar com sua conta ou ativar sua licença.",
                 CommonButtons = TaskDialogCommonButtons.Close
             };
-            dialog.AddCommandLink(TaskDialogCommandLinkId.CommandLink1, "Abrir Gerenciador de Licença...");
+            dialog.AddCommandLink(TaskDialogCommandLinkId.CommandLink1, "Abrir Node.aec Connector...");
 
             if (dialog.Show() == TaskDialogResult.CommandLink1)
             {
-                LicenseManagerWindow.Open(commandData.Application);
+                NodeAecGate.OpenConnector();
             }
 
             return Result.Cancelled;
         }
 
-        // --- EXECUÇÃO NORMAL DO SEU COMANDO ---
-        TaskDialog.Show("Executando", $"Ferramenta licenciada para: {check.ProductName}");
+        // 2. Execução normal do seu comando
+        TaskDialog.Show("Sucesso", $"Executando recurso comercial ({check.LicenseType}).");
         return Result.Succeeded;
     }
 }
@@ -183,17 +166,15 @@ public class MeuComandoComercial : IExternalCommand
 
 ---
 
-## 🛠️ Compilação e Instalação no Revit Local
-
-Para compilar e testar este sample diretamente na sua máquina Windows:
+## 🛠️ Compilação e Testes
 
 ```powershell
-# 1. Compilação da Solution em Release (.NET 8)
+# Compilar a solution
 dotnet build NodeAec.Licensing.Sample.sln -c Release
 
-# 2. Empacotamento em arquivo zip distribuível
-powershell -ExecutionPolicy Bypass -File scripts\release.ps1 -Version 1.0.0
+# Executar testes unitários headless (CI-safe)
+dotnet test NodeAec.Licensing.Sample.sln -c Release
 
-# 3. Empacotamento + Instalação automática no Revit 2026 local
+# Empacotar zip e instalar no Revit local
 powershell -ExecutionPolicy Bypass -File scripts\release.ps1 -Version 1.0.0 -Install
 ```

@@ -7,7 +7,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <RootNamespace>NodeAec.Licensing.Sample</RootNamespace>
     <AssemblyName>NodeAec.Licensing.Sample</AssemblyName>
-    <Description>Node.aec licensing sample Revit add-in (dev-branch lease contract: activate/validate/deactivate + JWKS).</Description>
+    <Description>Node.aec partner plugin integration sample using Micro-SDK NodeAecGate.</Description>
     <EnableWindowsTargeting>true</EnableWindowsTargeting>
     <UseWPF>true</UseWPF>
     <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
