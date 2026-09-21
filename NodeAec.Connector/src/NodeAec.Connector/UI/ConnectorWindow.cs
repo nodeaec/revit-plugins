@@ -221,7 +221,15 @@ public class ConnectorWindow : Window
             Text = "Suas licenças da Node.aec em um só lugar.",
             FontSize = 12,
             Foreground = UiTheme.Brush(UiTheme.TextSecondary),
-            Margin = new Thickness(0, 4, 0, 0)
+            Margin = new Thickness(0, 4, 0, 8)
+        });
+        titlePanel.Children.Add(new Border
+        {
+            Background = UiTheme.Brush(UiTheme.Accent),
+            Height = 3,
+            Width = 48,
+            HorizontalAlignment = HorizontalAlignment.Left,
+            CornerRadius = new CornerRadius(2)
         });
         Grid.SetColumn(titlePanel, 0);
         header.Children.Add(titlePanel);
@@ -325,7 +333,7 @@ public class ConnectorWindow : Window
         {
             Content = content,
             FontSize = 12,
-            Foreground = UiTheme.Brush(UiTheme.Info),
+            Foreground = UiTheme.Brush(UiTheme.Primary),
             Background = Brushes.Transparent,
             BorderThickness = new Thickness(0),
             Cursor = System.Windows.Input.Cursors.Hand,
@@ -363,7 +371,7 @@ public class ConnectorWindow : Window
         if (payload == null)
         {
             _txtLicenseStatus.Text = "Não conseguimos ler as licenças salvas. Tente atualizar.";
-            _txtLicenseStatus.Foreground = UiTheme.Brush(UiTheme.Error);
+            _txtLicenseStatus.Foreground = UiTheme.Brush(UiTheme.Accent);
             return;
         }
 
@@ -371,18 +379,18 @@ public class ConnectorWindow : Window
         if (payload.IsExpired)
         {
             _txtLicenseStatus.Text = $"Suas licenças estão desatualizadas desde {exp:dd/MM/yyyy}. Conecte-se à internet e clique em atualizar.";
-            _txtLicenseStatus.Foreground = UiTheme.Brush(UiTheme.Error);
+            _txtLicenseStatus.Foreground = UiTheme.Brush(UiTheme.Accent);
         }
         else
         {
             _txtLicenseStatus.Text = $"Tudo certo — suas licenças estão atualizadas até {exp:dd/MM/yyyy}.";
-            _txtLicenseStatus.Foreground = UiTheme.Brush(UiTheme.Success);
+            _txtLicenseStatus.Foreground = UiTheme.Brush(UiTheme.Primary);
         }
     }
 
     private async System.Threading.Tasks.Task HandleBrowserLoginAsync()
     {
-        SetFeedback("Abrindo o navegador para você entrar com segurança...", UiTheme.Info);
+        SetFeedback("Abrindo o navegador para você entrar com segurança...", UiTheme.Primary);
         _btnLogin.IsEnabled = false;
 
         try
@@ -390,7 +398,7 @@ public class ConnectorWindow : Window
             var authService = new DesktopAuthService();
             string userToken = await authService.LoginViaBrowserAsync().ConfigureAwait(true);
 
-            SetFeedback("Pronto! Buscando suas licenças...", UiTheme.Info);
+            SetFeedback("Pronto! Buscando suas licenças...", UiTheme.Primary);
             using var client = new ConnectorApiClient();
             var syncResult = await client.SyncMasterEntitlementsAsync(userToken).ConfigureAwait(true);
 
@@ -398,16 +406,16 @@ public class ConnectorWindow : Window
             {
                 var payload = LeaseStorage.ParseJwtPayload(syncResult.LeaseToken ?? string.Empty);
                 LeaseStorage.SaveSession(payload?.Sub, userToken);
-                SetFeedback($"Tudo pronto! {syncResult.GrantedCount} plugin(s) liberado(s) neste computador.", UiTheme.Success);
+                SetFeedback($"Tudo pronto! {syncResult.GrantedCount} plugin(s) liberado(s) neste computador.", UiTheme.Primary);
             }
             else
             {
-                SetFeedback($"Não foi possível buscar suas licenças: {syncResult.Message}", UiTheme.Error);
+                SetFeedback($"Não foi possível buscar suas licenças: {syncResult.Message}", UiTheme.Accent);
             }
         }
         catch (Exception ex)
         {
-            SetFeedback($"Algo não saiu como esperado: {ex.Message}", UiTheme.Error);
+            SetFeedback($"Algo não saiu como esperado: {ex.Message}", UiTheme.Accent);
         }
         finally
         {
@@ -418,7 +426,7 @@ public class ConnectorWindow : Window
 
     private async System.Threading.Tasks.Task HandleSyncAsync()
     {
-        SetFeedback("Atualizando suas licenças...", UiTheme.Info);
+        SetFeedback("Atualizando suas licenças...", UiTheme.Primary);
         _btnSync.IsEnabled = false;
 
         try
@@ -438,16 +446,16 @@ public class ConnectorWindow : Window
 
             if (result.Success)
             {
-                SetFeedback("Licenças atualizadas com sucesso.", UiTheme.Success);
+                SetFeedback("Licenças atualizadas com sucesso.", UiTheme.Primary);
             }
             else
             {
-                SetFeedback($"Não foi possível atualizar agora: {result.Message}", UiTheme.Error);
+                SetFeedback($"Não foi possível atualizar agora: {result.Message}", UiTheme.Accent);
             }
         }
         catch (Exception ex)
         {
-            SetFeedback($"Sem conexão no momento: {ex.Message}", UiTheme.Error);
+            SetFeedback($"Sem conexão no momento: {ex.Message}", UiTheme.Accent);
         }
         finally
         {
@@ -461,11 +469,11 @@ public class ConnectorWindow : Window
         string key = _txtManualKey.Text?.Trim() ?? string.Empty;
         if (string.IsNullOrWhiteSpace(key))
         {
-            SetFeedback("Digite a chave enviada para você (começa com NAEC-...).", UiTheme.Error);
+            SetFeedback("Digite a chave enviada para você (começa com NAEC-...).", UiTheme.Accent);
             return;
         }
 
-        SetFeedback("Ativando sua chave...", UiTheme.Info);
+        SetFeedback("Ativando sua chave...", UiTheme.Primary);
         _btnActivateKey.IsEnabled = false;
 
         try
@@ -476,16 +484,16 @@ public class ConnectorWindow : Window
             if (result.Success)
             {
                 _txtManualKey.Clear();
-                SetFeedback("Chave ativada! Seus plugins foram liberados.", UiTheme.Success);
+                SetFeedback("Chave ativada! Seus plugins foram liberados.", UiTheme.Primary);
             }
             else
             {
-                SetFeedback(result.Message, UiTheme.Error);
+                SetFeedback(result.Message, UiTheme.Accent);
             }
         }
         catch (Exception ex)
         {
-            SetFeedback($"Não foi possível ativar agora: {ex.Message}", UiTheme.Error);
+            SetFeedback($"Não foi possível ativar agora: {ex.Message}", UiTheme.Accent);
         }
         finally
         {
@@ -510,17 +518,17 @@ public class ConnectorWindow : Window
                 var payload = LeaseStorage.ParseJwtPayload(content);
                 if (payload == null)
                 {
-                    SetFeedback("Este arquivo não parece ser uma licença válida.", UiTheme.Error);
+                    SetFeedback("Este arquivo não parece ser uma licença válida.", UiTheme.Accent);
                     return;
                 }
 
                 LeaseStorage.SaveMasterLease(content);
-                SetFeedback("Licença importada com sucesso!", UiTheme.Success);
+                SetFeedback("Licença importada com sucesso!", UiTheme.Primary);
                 RefreshUiFromStorage();
             }
             catch (Exception ex)
             {
-                SetFeedback($"Não foi possível importar: {ex.Message}", UiTheme.Error);
+                SetFeedback($"Não foi possível importar: {ex.Message}", UiTheme.Accent);
             }
         }
     }

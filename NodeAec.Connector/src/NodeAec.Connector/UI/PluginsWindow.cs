@@ -77,7 +77,15 @@ public class PluginsWindow : Window
             Text = "Tudo o que a sua conta liberou para este computador.",
             FontSize = 12,
             Foreground = UiTheme.Brush(UiTheme.TextSecondary),
-            Margin = new Thickness(0, 4, 0, 0)
+            Margin = new Thickness(0, 4, 0, 8)
+        });
+        header.Children.Add(new Border
+        {
+            Background = UiTheme.Brush(UiTheme.Accent),
+            Height = 3,
+            Width = 48,
+            HorizontalAlignment = HorizontalAlignment.Left,
+            CornerRadius = new CornerRadius(2)
         });
         root.Children.Add(header);
 
@@ -175,7 +183,7 @@ public class PluginsWindow : Window
         {
             Content = content,
             FontSize = 12,
-            Foreground = UiTheme.Brush(UiTheme.Info),
+            Foreground = UiTheme.Brush(UiTheme.Primary),
             Background = Brushes.Transparent,
             BorderThickness = new Thickness(0),
             Cursor = System.Windows.Input.Cursors.Hand,
@@ -264,7 +272,7 @@ public class PluginsWindow : Window
             Text = statusText,
             FontSize = 12,
             FontWeight = FontWeights.SemiBold,
-            Foreground = UiTheme.Brush(active ? UiTheme.Success : UiTheme.Error),
+            Foreground = UiTheme.Brush(active ? UiTheme.Primary : UiTheme.Accent),
             Margin = new Thickness(0, 4, 0, 6)
         });
 
@@ -281,7 +289,7 @@ public class PluginsWindow : Window
 
     private async System.Threading.Tasks.Task HandleBrowserLoginAsync()
     {
-        SetFeedback("Abrindo o navegador para você entrar com segurança...", UiTheme.Info);
+        SetFeedback("Abrindo o navegador para você entrar com segurança...", UiTheme.Primary);
         _btnLogin.IsEnabled = false;
 
         try
@@ -296,16 +304,16 @@ public class PluginsWindow : Window
             {
                 var payload = LeaseStorage.ParseJwtPayload(syncResult.LeaseToken ?? string.Empty);
                 LeaseStorage.SaveSession(payload?.Sub, userToken);
-                SetFeedback($"Bem-vindo! {syncResult.GrantedCount} plugin(s) liberado(s).", UiTheme.Success);
+                SetFeedback($"Bem-vindo! {syncResult.GrantedCount} plugin(s) liberado(s).", UiTheme.Primary);
             }
             else
             {
-                SetFeedback($"Não foi possível buscar seus plugins: {syncResult.Message}", UiTheme.Error);
+                SetFeedback($"Não foi possível buscar seus plugins: {syncResult.Message}", UiTheme.Accent);
             }
         }
         catch (Exception ex)
         {
-            SetFeedback($"Algo não saiu como esperado: {ex.Message}", UiTheme.Error);
+            SetFeedback($"Algo não saiu como esperado: {ex.Message}", UiTheme.Accent);
         }
         finally
         {
@@ -316,7 +324,7 @@ public class PluginsWindow : Window
 
     private async System.Threading.Tasks.Task HandleSyncAsync()
     {
-        SetFeedback("Atualizando sua lista...", UiTheme.Info);
+        SetFeedback("Atualizando sua lista...", UiTheme.Primary);
         _btnSync.IsEnabled = false;
 
         try
@@ -330,11 +338,11 @@ public class PluginsWindow : Window
 
             SetFeedback(
                 result.Success ? "Lista atualizada." : $"Não foi possível atualizar agora: {result.Message}",
-                result.Success ? UiTheme.Success : UiTheme.Error);
+                result.Success ? UiTheme.Primary : UiTheme.Accent);
         }
         catch (Exception ex)
         {
-            SetFeedback($"Sem conexão no momento: {ex.Message}", UiTheme.Error);
+            SetFeedback($"Sem conexão no momento: {ex.Message}", UiTheme.Accent);
         }
         finally
         {

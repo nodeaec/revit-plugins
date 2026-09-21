@@ -11,6 +11,7 @@ using Autodesk.Windows;
 using NodeAec.Connector.Client;
 using NodeAec.Connector.Commands;
 using NodeAec.Connector.Storage;
+using NodeAec.Connector.UI;
 
 namespace NodeAec.Connector;
 
@@ -93,7 +94,8 @@ public class App : IExternalApplication
             ToolTip = "Veja os plugins vinculados à sua conta, com link para cada produto.",
             AvailabilityClassName = typeof(RequiresLoginAvailability).FullName ?? string.Empty
         };
-        LoadButtonIcons(btnPluginsData, addInDir);
+        btnPluginsData.Image = UiTheme.PluginsIcon(large: false);
+        btnPluginsData.LargeImage = UiTheme.PluginsIcon(large: true);
 
         var btnCatalogData = new PushButtonData(
             "NodeAec_ExploreCatalog",
@@ -103,7 +105,8 @@ public class App : IExternalApplication
         {
             ToolTip = "Explorar plugins, famílias e templates no marketplace Node.aec."
         };
-        LoadButtonIcons(btnCatalogData, addInDir);
+        btnCatalogData.Image = UiTheme.CatalogIcon(large: false);
+        btnCatalogData.LargeImage = UiTheme.CatalogIcon(large: true);
         AddStackedButtonsIfMissing(connectorPanel, btnPluginsData, btnCatalogData);
 
         // 7. Hooks defensivos de ciclo de vida do Revit Ribbon
