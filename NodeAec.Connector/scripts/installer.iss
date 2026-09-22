@@ -1,7 +1,7 @@
 ; Node.aec Connector - Inno Setup installer script (requires Inno Setup 6).
 ;
 ; Compiled automatically by scripts/release.ps1 when ISCC.exe is available:
-;   ISCC.exe /DAppVersion=0.1 /DAppVersionNum=0.1.0 /DRevitYear=2026
+;   ISCC.exe /DAppVersion=0.1.1 /DAppVersionNum=0.1.1 /DRevitYear=2026
 ;            /DPayloadStage=<abs path>\release\stage\NodeAec.Connector
 ;            /O<abs path>\release scripts\installer.iss
 ;
@@ -18,10 +18,10 @@
 ; NOTE: this file must stay plain ASCII (ISCC reads scripts as ANSI/UTF-8-BOM).
 
 #ifndef AppVersion
-  #define AppVersion "0.1"
+  #define AppVersion "0.1.1"
 #endif
 #ifndef AppVersionNum
-  #define AppVersionNum "0.1.0"
+  #define AppVersionNum "0.1.1"
 #endif
 #ifndef RevitYear
   #define RevitYear "2026"

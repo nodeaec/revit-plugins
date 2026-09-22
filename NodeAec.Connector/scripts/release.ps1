@@ -8,11 +8,11 @@
   standard location). Without it, only the .zip is produced - no failure.
 
 .EXAMPLE
-  powershell -ExecutionPolicy Bypass -File scripts/release.ps1 -Version 0.1
-  powershell -ExecutionPolicy Bypass -File scripts/release.ps1 -Version 0.1 -Install
+  powershell -ExecutionPolicy Bypass -File scripts/release.ps1 -Version 0.1.1
+  powershell -ExecutionPolicy Bypass -File scripts/release.ps1 -Version 0.1.1 -Install
 #>
 param(
-  [string]$Version = "0.1",
+  [string]$Version = "0.1.1",
   [string]$RevitYear = "2026",
   [string]$Configuration = "Release",
   [switch]$Install,

@@ -5,7 +5,7 @@
     <LangVersion>latest</LangVersion>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
-    <Version>0.1</Version>
+    <Version>0.1.1</Version>
     <RootNamespace>NodeAec.Connector</RootNamespace>
     <AssemblyName>NodeAec.Connector</AssemblyName>
     <Description>Node.aec Connector: Central desktop governance add-in and unified Ribbon for Autodesk Revit.</Description>
