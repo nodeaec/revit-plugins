@@ -346,7 +346,10 @@ public class ConnectorWindow : Window
         var session = LeaseStorage.LoadSession();
         if (session.HasValue && !string.IsNullOrWhiteSpace(session.Value.Email))
         {
-            _txtAccountTitle.Text = "Olá! Você está conectado como:";
+            var name = session.Value.Name;
+            _txtAccountTitle.Text = string.IsNullOrWhiteSpace(name)
+                ? "Olá! Você está conectado como:"
+                : $"Olá, {name}! Você está conectado como:";
             _txtAccountHint.Text = session.Value.Email ?? string.Empty;
             _btnLogin.Visibility = Visibility.Collapsed;
             _btnLogout.Visibility = Visibility.Visible;
@@ -404,8 +407,8 @@ public class ConnectorWindow : Window
 
             if (syncResult.Success)
             {
-                var payload = LeaseStorage.ParseJwtPayload(syncResult.LeaseToken ?? string.Empty);
-                LeaseStorage.SaveSession(payload?.Sub, userToken);
+                var userClaims = LeaseStorage.ParseUserSessionClaims(userToken);
+                LeaseStorage.SaveSession(userClaims?.Email, userToken, userClaims?.Name);
                 SetFeedback($"Tudo pronto! {syncResult.GrantedCount} plugin(s) liberado(s) neste computador.", UiTheme.Primary);
             }
             else

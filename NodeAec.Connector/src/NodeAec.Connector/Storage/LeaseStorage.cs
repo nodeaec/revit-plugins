@@ -124,14 +124,19 @@ public static class LeaseStorage
     }
 
     /// <summary>
-    /// Salva dados de sessão de usuário (email, token) criptografados.
+    /// Salva dados de sessão de usuário (nome, email, token) criptografados.
     /// </summary>
-    public static void SaveSession(string? userEmail, string? userToken)
+    public static void SaveSession(string? userEmail, string? userToken, string? userName = null)
     {
         var path = GetSessionFilePath();
         var dir = Path.GetDirectoryName(path);
         if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir)) Directory.CreateDirectory(dir);
-        var json = JsonSerializer.Serialize(new { email = userEmail ?? string.Empty, token = userToken ?? string.Empty });
+        var json = JsonSerializer.Serialize(new
+        {
+            name = userName ?? string.Empty,
+            email = userEmail ?? string.Empty,
+            token = userToken ?? string.Empty
+        });
         var rawBytes = Encoding.UTF8.GetBytes(json);
 
         byte[] bytesToWrite;
@@ -155,9 +160,12 @@ public static class LeaseStorage
     }
 
     /// <summary>
-    /// Lê a sessão do usuário salva.
+    /// Lê a sessão do usuário salva (nome, email, token).
+    /// Sessões antigas gravaram o id público no campo "email"; quando o token
+    /// de usuário salvo contém as claims reais, elas têm prioridade e corrige
+    /// o valor armazenado silenciosamente.
     /// </summary>
-    public static (string? Email, string? Token)? LoadSession()
+    public static (string? Name, string? Email, string? Token)? LoadSession()
     {
         var path = GetSessionFilePath();
         if (!File.Exists(path)) return null;
@@ -184,9 +192,18 @@ public static class LeaseStorage
             }
 
             using var doc = JsonDocument.Parse(json);
+            string? name = doc.RootElement.TryGetProperty("name", out var n) ? n.GetString() : null;
             string? email = doc.RootElement.TryGetProperty("email", out var e) ? e.GetString() : null;
             string? token = doc.RootElement.TryGetProperty("token", out var t) ? t.GetString() : null;
-            return (email, token);
+
+            var claims = ParseUserSessionClaims(token);
+            if (claims != null)
+            {
+                if (!string.IsNullOrWhiteSpace(claims.Email)) email = claims.Email;
+                if (!string.IsNullOrWhiteSpace(claims.Name)) name = claims.Name;
+            }
+
+            return (name, email, token);
         }
         catch
         {
@@ -211,6 +228,49 @@ public static class LeaseStorage
     /// </summary>
     public static MasterLeasePayload? ParseJwtPayload(string token)
     {
+        var json = DecodeJwtPayloadJson(token);
+        if (json == null) return null;
+
+        try
+        {
+            return JsonSerializer.Deserialize<MasterLeasePayload>(json);
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Decodifica as claims de identidade (id, email, name) do token de sessão
+    /// do usuário, sem verificar assinatura. Retorna null para tokens ausentes,
+    /// malformados ou que não carreguem essas claims (ex.: o lease mestre).
+    /// </summary>
+    public static UserSessionClaims? ParseUserSessionClaims(string? token)
+    {
+        var json = DecodeJwtPayloadJson(token);
+        if (json == null) return null;
+
+        try
+        {
+            var claims = JsonSerializer.Deserialize<UserSessionClaims>(json);
+            if (claims == null) return null;
+            return string.IsNullOrWhiteSpace(claims.Email) && string.IsNullOrWhiteSpace(claims.Name)
+                ? null
+                : claims;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Retorna o payload (segmento base64url do meio) de um JWT como JSON,
+    /// ou null quando o token não é um JWT utilizável.
+    /// </summary>
+    private static string? DecodeJwtPayloadJson(string? token)
+    {
         if (string.IsNullOrWhiteSpace(token)) return null;
         var parts = token.Split('.');
         if (parts.Length < 2) return null;
@@ -224,8 +284,7 @@ public static class LeaseStorage
                 case 3: base64 += "="; break;
             }
 
-            var json = Encoding.UTF8.GetString(Convert.FromBase64String(base64));
-            return JsonSerializer.Deserialize<MasterLeasePayload>(json);
+            return Encoding.UTF8.GetString(Convert.FromBase64String(base64));
         }
         catch
         {

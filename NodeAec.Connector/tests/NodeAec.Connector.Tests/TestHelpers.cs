@@ -50,6 +50,22 @@ public static class TestHelpers
             .Replace("/", "_")
             .TrimEnd('=');
     }
+
+    /// <summary>
+    /// Monta um JWT de sessão de usuário com as claims id/email/name emitidas
+    /// pela plataforma (cf. createSessionToken na API), sem validar assinatura.
+    /// </summary>
+    public static string CreateUserSessionJwt(string id, string email, string name)
+    {
+        var header = new { alg = "RS256", typ = "JWT" };
+        var payload = new { id, email, name };
+
+        string headerBase64 = ToBase64Url(JsonSerializer.Serialize(header));
+        string payloadBase64 = ToBase64Url(JsonSerializer.Serialize(payload));
+        string dummySignature = ToBase64Url("dummy-rs256-signature-data-bytes");
+
+        return $"{headerBase64}.{payloadBase64}.{dummySignature}";
+    }
 }
 
 public class MockHttpMessageHandler : HttpMessageHandler

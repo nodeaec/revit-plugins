@@ -302,8 +302,8 @@ public class PluginsWindow : Window
 
             if (syncResult.Success)
             {
-                var payload = LeaseStorage.ParseJwtPayload(syncResult.LeaseToken ?? string.Empty);
-                LeaseStorage.SaveSession(payload?.Sub, userToken);
+                var userClaims = LeaseStorage.ParseUserSessionClaims(userToken);
+                LeaseStorage.SaveSession(userClaims?.Email, userToken, userClaims?.Name);
                 SetFeedback($"Bem-vindo! {syncResult.GrantedCount} plugin(s) liberado(s).", UiTheme.Primary);
             }
             else
