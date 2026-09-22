@@ -88,7 +88,7 @@ dotnet test NodeAec.Connector\tests\NodeAec.Connector.Tests\NodeAec.Connector.Te
 
 ### Empacotar e Instalar no Revit 2026:
 ```powershell
-powershell -ExecutionPolicy Bypass -File NodeAec.Connector\scripts\release.ps1 -Version 1.0.0 -Install
+powershell -ExecutionPolicy Bypass -File NodeAec.Connector\scripts\release.ps1 -Version 0.1 -Install
 ```
 
 ---

@@ -100,7 +100,7 @@ dotnet build NodeAec.Connector\NodeAec.Connector.sln -c Release
 dotnet test NodeAec.Connector\NodeAec.Connector.sln -c Release
 
 # Empacotar e instalar no Revit 2026 local
-powershell -ExecutionPolicy Bypass -File NodeAec.Connector\scripts\release.ps1 -Version 1.0.0 -Install
+powershell -ExecutionPolicy Bypass -File NodeAec.Connector\scripts\release.ps1 -Version 0.1 -Install
 
 # 2. NodeAec.Licensing.Sample (Add-in de Exemplo)
 dotnet build NodeAec.Licensing.Sample\NodeAec.Licensing.Sample.sln -c Release

@@ -3,11 +3,11 @@
   Builds, stages, zips, and optionally installs the Node.aec Connector Revit add-in.
 
 .EXAMPLE
-  powershell -ExecutionPolicy Bypass -File scripts/release.ps1 -Version 1.0.0
-  powershell -ExecutionPolicy Bypass -File scripts/release.ps1 -Version 1.0.0 -Install
+  powershell -ExecutionPolicy Bypass -File scripts/release.ps1 -Version 0.1
+  powershell -ExecutionPolicy Bypass -File scripts/release.ps1 -Version 0.1 -Install
 #>
 param(
-  [string]$Version = "1.0.0",
+  [string]$Version = "0.1",
   [string]$RevitYear = "2026",
   [string]$Configuration = "Release",
   [switch]$Install,
