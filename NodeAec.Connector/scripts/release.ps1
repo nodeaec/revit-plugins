@@ -1,6 +1,11 @@
 <#
 .SYNOPSIS
-  Builds, stages, zips, and optionally installs the Node.aec Connector Revit add-in.
+  Builds, stages, zips, optionally compiles the Inno Setup installer (.exe),
+  and optionally installs the Node.aec Connector Revit add-in.
+
+.NOTES
+  Setup.exe generation requires Inno Setup 6 (ISCC.exe on PATH-adjacent
+  standard location). Without it, only the .zip is produced - no failure.
 
 .EXAMPLE
   powershell -ExecutionPolicy Bypass -File scripts/release.ps1 -Version 0.1
@@ -18,7 +23,7 @@ $ErrorActionPreference = "Stop"
 
 $ConnectorRoot = Split-Path $PSScriptRoot -Parent
 $Sln = Join-Path $ConnectorRoot "NodeAec.Connector.sln"
-$OutDir = Join-Path $ConnectorRoot "src\NodeAec.Connector\bin\$Configuration\net8.0-windows"
+$OutDir = Join-Path $ConnectorRoot "src\NodeAec.Connector\bin\$Configuration\net10.0-windows"
 $DllName = "NodeAec.Connector.dll"
 $AddinTemplate = Join-Path $ConnectorRoot "src\NodeAec.Connector\NodeAec.Connector.addin"
 $ReleaseDir = Join-Path $ConnectorRoot "release"
@@ -70,6 +75,34 @@ $hash = (Get-FileHash $ZipPath -Algorithm SHA256).Hash.ToLowerInvariant()
 "$hash  $(Split-Path $ZipPath -Leaf)" | Out-File "$ZipPath.sha256" -Encoding ascii
 Write-Host "==> release: $ZipPath"
 Write-Host "    sha256: $hash"
+
+# Optional: Inno Setup .exe installer (double-click friendly for end users).
+# Requires Inno Setup 6 (https://jrsoftware.org/isdl.php). When ISCC.exe is
+# not found the .zip above remains the only artifact - no failure.
+$setupName = "NodeAec.Connector-$Version-Setup.exe"
+$iscc = @(
+  "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe",
+  "$env:ProgramFiles\Inno Setup 6\ISCC.exe",
+  "${env:LOCALAPPDATA}\Programs\Inno Setup 6\ISCC.exe"
+) | Where-Object { $_ -and (Test-Path $_) } | Select-Object -First 1
+
+if ($iscc) {
+  $versionNum = if ($Version -match '^\d+\.\d+$') { "$Version.0" } else { $Version }
+  $iss = Join-Path $PSScriptRoot "installer.iss"
+  Write-Host "==> ISCC $iss"
+  & $iscc "/DAppVersion=$Version" "/DAppVersionNum=$versionNum" "/DRevitYear=$RevitYear" "/DPayloadStage=$StageDir" "/O$ReleaseDir" $iss
+  if ($LASTEXITCODE -ne 0) { throw "ISCC failed ($LASTEXITCODE)" }
+
+  $setupPath = Join-Path $ReleaseDir $setupName
+  if (-not (Test-Path $setupPath)) { throw "Setup output not found: $setupPath" }
+  $setupHash = (Get-FileHash $setupPath -Algorithm SHA256).Hash.ToLowerInvariant()
+  "$setupHash  $setupName" | Out-File "$setupPath.sha256" -Encoding ascii
+  Write-Host "==> setup: $setupPath"
+  Write-Host "    sha256: $setupHash"
+}
+else {
+  Write-Warning "Inno Setup 6 (ISCC.exe) not found - only the .zip was generated. Install from https://jrsoftware.org/isdl.php to also build $setupName."
+}
 
 if ($Install) {
   $addinsDir = "$env:ProgramData\Autodesk\Revit\Addins\$RevitYear"

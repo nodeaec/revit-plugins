@@ -91,6 +91,8 @@ dotnet test NodeAec.Connector\tests\NodeAec.Connector.Tests\NodeAec.Connector.Te
 powershell -ExecutionPolicy Bypass -File NodeAec.Connector\scripts\release.ps1 -Version 0.1 -Install
 ```
 
+O script também gera `release/NodeAec.Connector-<versão>-Setup.exe` (instalador com duplo clique para usuários finais, compilado via `scripts/installer.iss`) quando o [Inno Setup 6](https://jrsoftware.org/isdl.php) está instalado; sem ele, apenas o `.zip` é produzido.
+
 ---
 
 ## 🔌 Como Integrar Plugins Parceiros com o `NodeAecGate`

@@ -9,6 +9,7 @@
 # Packaging gerado por scripts/release.ps1
 **/release/stage/
 **/release/*.zip
+**/release/*.exe
 **/release/*.sha256
 
 # OS
