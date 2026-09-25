@@ -18,7 +18,7 @@ Execute the build using the .NET CLI:
 dotnet build <SolutionOrProject>.sln -c Release
 
 # Or targeting a specific project
-dotnet build NodeAec.Connector\src\NodeAec.Connector\NodeAec.Connector.csproj -c Release
+dotnet build plugin\src\NodeAec.Connector\NodeAec.Connector.csproj -c Release
 ```
 
 ---

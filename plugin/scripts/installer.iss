@@ -72,8 +72,8 @@ brazilianportuguese.FinishFailedHeading=A instalacao nao foi concluida
 english.FinishFailedHeading=Setup did not finish
 brazilianportuguese.FinishFailedText=Alguns arquivos nao puderam ser atualizados (talvez o Revit estivesse aberto).%nFeche o Autodesk Revit e execute o instalador novamente.
 english.FinishFailedText=Some files could not be updated (Revit may have been open).%nClose Autodesk Revit and run Setup again.
-brazilianportuguese.AfterText=Instalacao concluida!%n%nAbra o Autodesk Revit, clique na aba "Node.aec" e depois em "Minha Conta" para entrar com sua conta e liberar seus plugins.%n%nEm caso de problema, consulte o manual do usuario em NodeAec.Connector/docs/USER_MANUAL.md ou fale com o suporte Node.aec: https://nodeaec.com.br
-english.AfterText=Installation finished!%n%nOpen Autodesk Revit, click the "Node.aec" tab and then "My Account" to sign in and unlock your plugins.%n%nIf anything goes wrong, see the user manual in NodeAec.Connector/docs/USER_MANUAL.md or contact Node.aec support: https://nodeaec.com.br
+brazilianportuguese.AfterText=Instalacao concluida!%n%nAbra o Autodesk Revit, clique na aba "Node.aec" e depois em "Minha Conta" para entrar com sua conta e liberar seus plugins.%n%nEm caso de problema, consulte o manual do usuario em plugin/docs/USER_MANUAL.md ou fale com o suporte Node.aec: https://nodeaec.com.br
+english.AfterText=Installation finished!%n%nOpen Autodesk Revit, click the "Node.aec" tab and then "My Account" to sign in and unlock your plugins.%n%nIf anything goes wrong, see the user manual in plugin/docs/USER_MANUAL.md or contact Node.aec support: https://nodeaec.com.br
 
 ; Payload staged by release.ps1 (plugin DLL, DPAPI dependency, Resources, README).
 ; The staged .addin is excluded: per-year manifests are generated in [Code].

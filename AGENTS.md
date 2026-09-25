@@ -20,7 +20,7 @@ Sua meta é acelerar o ecossistema de desenvolvedores AEC/BIM, padronizando a in
    - Gerencia a aba canônica **`Node.aec`** e deduplicação via `Autodesk.Windows.ComponentManager`.
 
 > [!NOTE]
-> Se o seu objetivo for instruir como integrar o licenciamento Node.aec em um **plugin externo de um usuário**, consulte a skill [`.agents/skills/licensing-integrate`](.agents/skills/licensing-integrate/SKILL.md) e a seção [Como Integrar do README](NodeAec.Connector/README.md#-como-integrar-plugins-parceiros-com-o-nodeaecgate). Este arquivo atual rege o desenvolvimento **interno deste repositório**.
+> Se o seu objetivo for instruir como integrar o licenciamento Node.aec em um **plugin externo de um usuário**, consulte a skill [`.agents/skills/licensing-integrate`](.agents/skills/licensing-integrate/SKILL.md) e a seção [Como Integrar do README](plugin/README.md#-como-integrar-plugins-parceiros-com-o-nodeaecgate). Este arquivo atual rege o desenvolvimento **interno deste repositório**.
 
 ---
 
@@ -92,11 +92,11 @@ Todas as alterações devem ser validadas compilando a solution relevante e veri
 ```powershell
 # 1. Node.aec Connector (Hub Central)
 # Compilar e rodar testes unitários headless
-dotnet build NodeAec.Connector\NodeAec.Connector.sln -c Release
-dotnet test NodeAec.Connector\NodeAec.Connector.sln -c Release
+dotnet build plugin\NodeAec.Connector.sln -c Release
+dotnet test plugin\NodeAec.Connector.sln -c Release
 
 # Empacotar e instalar no Revit 2026 local
-powershell -ExecutionPolicy Bypass -File NodeAec.Connector\scripts\release.ps1 -Version 0.1.1 -Install
+powershell -ExecutionPolicy Bypass -File plugin\scripts\release.ps1 -Version 0.1.1 -Install
 ```
 
 > [!WARNING]

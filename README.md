@@ -21,7 +21,7 @@ revit-plugins/
 ├── AGENTS.md                          # Diretrizes e regras para agentes de IA neste repositório
 ├── README.md                          # Este documento (visão geral do repositório)
 │
-└── NodeAec.Connector/                 # Add-in Hub central de governança desktop e Ribbon unificada
+└── plugin/                           # Add-in Hub central de governança desktop e Ribbon unificada
     ├── README.md                      # Documentação completa do Connector
     ├── docs/                          # Manual do usuário e contrato da API de licenciamento
     ├── NodeAec.Connector.sln          # Solution (.NET 8 / Revit 2026)
@@ -47,8 +47,8 @@ Add-in centralizador de governança e Ribbon unificada `Node.aec` para Autodesk 
 - **Master Entitlements Lease**: Sincronização consolidada de todos os produtos do usuário em um único token assinado com Ed25519.
 - **Micro-SDK `NodeAecGate`**: Validação de autorização em plugins parceiros em menos de 1ms sem acessar rede.
 - **Tolerância Offline de 30 Dias**: Operação contínua desconectada e suporte a estações isoladas (*air-gapped*).
-- 📖 [Acessar Guia do Node.aec Connector (README.md)](NodeAec.Connector/README.md)
-- 📖 [Acessar o Manual do Usuário](NodeAec.Connector/docs/USER_MANUAL.md) e o [Contrato da API de Licenciamento](NodeAec.Connector/docs/licensing-api.md)
+- 📖 [Acessar Guia do Node.aec Connector (README.md)](plugin/README.md)
+- 📖 [Acessar o Manual do Usuário](plugin/docs/USER_MANUAL.md) e o [Contrato da API de Licenciamento](plugin/docs/licensing-api.md)
 
 ---
 
@@ -69,7 +69,7 @@ Para compilar a solution e instalar o add-in diretamente no Revit local:
 
 ```powershell
 # Navegar até o projeto
-Set-Location NodeAec.Connector
+Set-Location plugin
 
 # Compilar via .NET CLI
 dotnet build NodeAec.Connector.sln -c Release

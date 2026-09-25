@@ -59,7 +59,7 @@ public void ValidateToken_WithTamperedSignature_ReturnsInvalid()
 ### Phase 2: Run Tests to Verify Failure (Red)
 Run the tests using the .NET CLI:
 ```powershell
-dotnet test NodeAec.Connector/tests/NodeAec.Connector.Tests/NodeAec.Connector.Tests.csproj
+dotnet test plugin/tests/NodeAec.Connector.Tests/NodeAec.Connector.Tests.csproj
 ```
 Verify that the test fails for the expected reason, not due to compilation errors.
 

@@ -16,7 +16,7 @@ The repository provides an automated PowerShell release script at `scripts/relea
 ### 1. Basic Release Packaging (Generates `.zip` + SHA-256)
 
 ```powershell
-Set-Location NodeAec.Connector
+Set-Location plugin
 powershell -ExecutionPolicy Bypass -File scripts\release.ps1 -Version 0.1.1
 ```
 

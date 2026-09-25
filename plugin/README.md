@@ -93,7 +93,7 @@ o Node.aec concentra tudo num **Hub** e entrega aos plugins um **Micro-Gate** lo
 ## 🏗️ Estrutura do Projeto
 
 ```
-NodeAec.Connector/
+plugin/
 ├── NodeAec.Connector.sln
 ├── NodeAec.Connector.slnx
 ├── README.md
@@ -157,17 +157,17 @@ NodeAec.Connector/
 
 ### Compilar a Solution:
 ```powershell
-dotnet build NodeAec.Connector\NodeAec.Connector.sln -c Release
+dotnet build plugin\NodeAec.Connector.sln -c Release
 ```
 
 ### Executar os Testes Unitários:
 ```powershell
-dotnet test NodeAec.Connector\tests\NodeAec.Connector.Tests\NodeAec.Connector.Tests.csproj
+dotnet test plugin\tests\NodeAec.Connector.Tests\NodeAec.Connector.Tests.csproj
 ```
 
 ### Empacotar e Instalar no Revit 2026:
 ```powershell
-powershell -ExecutionPolicy Bypass -File NodeAec.Connector\scripts\release.ps1 -Version 0.1.1 -Install
+powershell -ExecutionPolicy Bypass -File plugin\scripts\release.ps1 -Version 0.1.1 -Install
 ```
 
 O script também gera `release/NodeAec.Connector-<versão>-Setup.exe` (instalador com duplo clique para usuários finais, compilado via `scripts/installer.iss`) quando o [Inno Setup 6](https://jrsoftware.org/isdl.php) está instalado; sem ele, apenas o `.zip` é produzido.

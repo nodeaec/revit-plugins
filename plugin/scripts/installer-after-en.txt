@@ -4,5 +4,5 @@ Open Autodesk Revit, click the "Node.aec" tab and then
 "My Account" to sign in with your account and unlock your plugins.
 
 If anything goes wrong, see the user manual in
-NodeAec.Connector/docs/USER_MANUAL.md or contact Node.aec support:
+plugin/docs/USER_MANUAL.md or contact Node.aec support:
 https://nodeaec.com.br

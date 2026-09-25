@@ -4,5 +4,5 @@ Abra o Autodesk Revit, clique na aba "Node.aec" e depois em
 "Minha Conta" para entrar com sua conta e liberar seus plugins.
 
 Em caso de problema, consulte o manual do usuario em
-NodeAec.Connector/docs/USER_MANUAL.md ou fale com o suporte Node.aec:
+plugin/docs/USER_MANUAL.md ou fale com o suporte Node.aec:
 https://nodeaec.com.br

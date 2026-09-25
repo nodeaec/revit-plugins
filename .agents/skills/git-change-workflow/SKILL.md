@@ -46,14 +46,14 @@ Every commit must represent one logical, cohesive unit that compiles cleanly:
 ### Step 1: Validate Before Staging
 Before staging, ensure the solution builds with **0 errors**:
 ```powershell
-dotnet build NodeAec.Connector\NodeAec.Connector.sln -c Release
+dotnet build plugin\NodeAec.Connector.sln -c Release
 ```
 
 ### Step 2: Explicit Staging
 Stage only the relevant files for the logical slice. Never stage indiscriminately:
 ```powershell
 # Good: explicit files
-git add NodeAec.Connector/src/NodeAec.Connector/Config/ConnectorConfig.cs
+git add plugin/src/NodeAec.Connector/Config/ConnectorConfig.cs
 
 # Forbidden: blind staging
 git add .
