@@ -345,10 +345,21 @@ public static class LeaseStorage
     }
 
     /// <summary>
-    /// Grava bytes de forma atômica: escreve em <c>{path}.tmp</c> no mesmo diretório e
-    /// promove o arquivo a destino (<c>File.Replace</c> quando já existe, que é um rename
-    /// atômico em Windows; <c>File.Move</c> na primeira gravação). Evita que uma queda de
-    /// energia/processo deixe um lease/sessão pela metade no disco. Usa apenas APIs
+    /// Lock de processo sobre a gravação atômica. Escritores concorrentes (heartbeat em
+    /// background, sync e login disparados pela UI) atingem os mesmos arquivos: sem a
+    /// trava, um <c>promote</c> no meio da escrita de outro thread deixa o arquivo
+    /// truncado — DPAPI falha ao ler e todos os plugins ficam bloqueados até o próximo
+    /// sync bem-sucedido.
+    /// </summary>
+    private static readonly object WriteLock = new();
+
+    /// <summary>
+    /// Grava bytes de forma atômica: escreve em um temporário de nome único
+    /// (<c>{path}.{guid}.tmp</c>) no mesmo diretório e promove o arquivo ao destino
+    /// (<c>File.Replace</c> quando já existe, que é um rename atômico em Windows;
+    /// <c>File.Move</c> na primeira gravação), sempre sob <see cref="WriteLock"/>.
+    /// Evita que uma queda de energia/processo deixe um lease/sessão pela metade no disco
+    /// e que escritores concorrentes corrompam o arquivo um ao outro. Usa apenas APIs
     /// presentes tanto no .NET Framework 4.8 (Revit 2023/2024) quanto no .NET 8/10.
     /// </summary>
     /// <param name="path">Arquivo de destino.</param>
@@ -358,16 +369,35 @@ public static class LeaseStorage
         var dir = Path.GetDirectoryName(path);
         if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir)) Directory.CreateDirectory(dir);
 
-        string tmp = $"{path}.tmp";
-        File.WriteAllBytes(tmp, bytes);
+        // Nome único por gravação: writers concorrentes jamais compartilham o mesmo temp.
+        string tmp = $"{path}.{Guid.NewGuid():N}.tmp";
+        try
+        {
+            lock (WriteLock)
+            {
+                File.WriteAllBytes(tmp, bytes);
 
-        if (File.Exists(path))
-        {
-            File.Replace(tmp, path, null);
+                if (File.Exists(path))
+                {
+                    File.Replace(tmp, path, null);
+                }
+                else
+                {
+                    File.Move(tmp, path);
+                }
+            }
         }
-        else
+        finally
         {
-            File.Move(tmp, path);
+            // Promote bem-sucedido renomeia o temp (ele deixa de existir); qualquer falha
+            // limpa o resíduo aqui. Best-effort: nunca mascarar a exceção original.
+            try
+            {
+                if (File.Exists(tmp)) File.Delete(tmp);
+            }
+            catch
+            {
+            }
         }
     }
 }

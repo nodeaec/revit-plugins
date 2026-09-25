@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using NodeAec.Connector.Models;
 using NodeAec.Connector.Storage;
 using Xunit;
@@ -136,7 +137,36 @@ public class LeaseStorageTests : IDisposable
 
         Assert.True(saved);
         Assert.Equal("atomic-write-check", LeaseStorage.LoadMasterLease());
-        Assert.False(File.Exists(LeaseStorage.GetLeaseFilePath() + ".tmp"));
+        // Temporários têm nome único ({path}.{guid}.tmp): nada pode sobrar após gravar.
+        Assert.Empty(Directory.GetFiles(_tempDir, "*.tmp"));
+    }
+
+    [Fact]
+    public void WriteAllBytesAtomic_ConcurrentWriters_LeaveCompletePayloadAndNoTempResidue()
+    {
+        // Escritores concorrentes (heartbeat + janelas) por vários rounds: o arquivo final
+        // deve ser SEMPRE um payload completo — nunca truncado ou misturado — e não pode
+        // sobrar temporário no diretório.
+        string path = Path.Combine(_tempDir, "concurrent.lease");
+        var payloads = new List<byte[]>();
+        for (int i = 0; i < 8; i++)
+        {
+            var payload = new byte[1024 * (i + 1)]; // tamanhos distintos expõem truncamento
+            for (int j = 0; j < payload.Length; j++) payload[j] = (byte)(i + 1);
+            payloads.Add(payload);
+        }
+
+        System.Threading.Tasks.Parallel.For(0, payloads.Count, i =>
+        {
+            for (int round = 0; round < 25; round++)
+            {
+                LeaseStorage.WriteAllBytesAtomic(path, payloads[i]);
+            }
+        });
+
+        byte[] final = File.ReadAllBytes(path);
+        Assert.Contains(payloads, p => p.SequenceEqual(final));
+        Assert.Empty(Directory.GetFiles(_tempDir, "*.tmp"));
     }
 
     [Fact]
