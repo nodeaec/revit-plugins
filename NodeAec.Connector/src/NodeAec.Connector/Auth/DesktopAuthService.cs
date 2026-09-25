@@ -62,13 +62,27 @@ public class DesktopAuthService
     }
 
     /// <summary>
+    /// Indica se o caminho recebido no loopback é o callback de autenticação aceito.
+    /// O portal web redireciona para <c>/callback</c> (sem barra final); o listener também
+    /// aceita <c>/callback/</c> e ignora qualquer outro caminho (favicon, sondagens, etc.).
+    /// </summary>
+    /// <param name="path">Caminho absoluto da requisição recebida.</param>
+    public static bool IsCallbackPath(string? path)
+    {
+        return string.Equals(path, "/callback", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(path, "/callback/", StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
     /// Inicia o loopback listener local e abre o navegador padrão para o usuário entrar com sua conta.
     /// Aguarda a resposta por até 120 segundos.
     /// </summary>
     public async Task<string> LoginViaBrowserAsync(CancellationToken cancellationToken = default)
     {
         int port = GetAvailableLoopbackPort();
-        string redirectPrefix = $"http://127.0.0.1:{port}/callback/";
+        // Prefixo na raiz para aceitar exatamente o caminho que o portal emite (`/callback`),
+        // que não termina em barra — prefixo com barra final não casaria com ele.
+        string redirectPrefix = $"http://127.0.0.1:{port}/";
         string state = GenerateSecureState();
 
         using var listener = new HttpListener();
@@ -96,30 +110,39 @@ public class DesktopAuthService
 
         try
         {
-            var getContextTask = listener.GetContextAsync();
             using (linkedCts.Token.Register(() =>
             {
                 try { listener.Abort(); } catch { }
             }))
             {
-                var context = await getContextTask.ConfigureAwait(false);
-                var request = context.Request;
-                var response = context.Response;
-
-                string? receivedState = request.QueryString["state"];
-                string? userToken = request.QueryString["token"];
-
-                if (string.IsNullOrEmpty(receivedState) || receivedState != state || string.IsNullOrEmpty(userToken))
+                while (true)
                 {
-                    byte[] errorBytes = Encoding.UTF8.GetBytes("Falha na autenticação: Estado inválido ou token ausente.");
-                    response.StatusCode = 400;
-                    response.ContentType = "text/plain; charset=utf-8";
-                    await response.OutputStream.WriteAsync(errorBytes, 0, errorBytes.Length, cancellationToken).ConfigureAwait(false);
-                    response.Close();
-                    throw new InvalidOperationException("Falha na validação CSRF do login.");
-                }
+                    var context = await listener.GetContextAsync().ConfigureAwait(false);
+                    var request = context.Request;
+                    var response = context.Response;
 
-                string successHtml = @"<!DOCTYPE html>
+                    // Ignora requisições que não sejam o callback (favicon, health probes...).
+                    if (!IsCallbackPath(request.Url?.AbsolutePath))
+                    {
+                        response.StatusCode = 404;
+                        response.Close();
+                        continue;
+                    }
+
+                    string? receivedState = request.QueryString["state"];
+                    string? userToken = request.QueryString["token"];
+
+                    if (string.IsNullOrEmpty(receivedState) || receivedState != state || string.IsNullOrEmpty(userToken))
+                    {
+                        byte[] errorBytes = Encoding.UTF8.GetBytes("Falha na autenticação: Estado inválido ou token ausente.");
+                        response.StatusCode = 400;
+                        response.ContentType = "text/plain; charset=utf-8";
+                        await response.OutputStream.WriteAsync(errorBytes, 0, errorBytes.Length, cancellationToken).ConfigureAwait(false);
+                        response.Close();
+                        throw new InvalidOperationException("A confirmação do login veio com dados inesperados. Tente entrar novamente.");
+                    }
+
+                    string successHtml = @"<!DOCTYPE html>
 <html lang=""pt-BR"">
 <head>
   <meta charset=""utf-8"">
@@ -140,15 +163,24 @@ public class DesktopAuthService
   </div>
 </body>
 </html>";
-                byte[] buffer = Encoding.UTF8.GetBytes(successHtml);
-                response.ContentType = "text/html; charset=utf-8";
-                response.StatusCode = 200;
-                response.ContentLength64 = buffer.Length;
-                await response.OutputStream.WriteAsync(buffer, 0, buffer.Length, cancellationToken).ConfigureAwait(false);
-                response.Close();
+                    byte[] buffer = Encoding.UTF8.GetBytes(successHtml);
+                    response.ContentType = "text/html; charset=utf-8";
+                    response.StatusCode = 200;
+                    response.ContentLength64 = buffer.Length;
+                    await response.OutputStream.WriteAsync(buffer, 0, buffer.Length, cancellationToken).ConfigureAwait(false);
+                    response.Close();
 
-                return userToken;
+                    return userToken;
+                }
             }
+        }
+        catch (Exception) when (cancellationToken.IsCancellationRequested)
+        {
+            throw new OperationCanceledException("Login cancelado.", cancellationToken);
+        }
+        catch (Exception) when (timeoutCts.IsCancellationRequested)
+        {
+            throw new InvalidOperationException("Tempo esgotado aguardando a confirmação do login no navegador. Verifique se a aba foi concluída e tente novamente.");
         }
         finally
         {

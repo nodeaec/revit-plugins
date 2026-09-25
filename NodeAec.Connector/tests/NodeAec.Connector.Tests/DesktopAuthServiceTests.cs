@@ -52,4 +52,17 @@ public class DesktopAuthServiceTests
 
         Assert.Equal("https://nodeaec.com.br/auth/desktop?env=dev&port=54321&state=abc_123", url);
     }
+
+    [Theory]
+    [InlineData("/callback", true)]        // formato real emitido pelo portal web
+    [InlineData("/callback/", true)]       // variação com barra final
+    [InlineData("/CALLBACK", true)]
+    [InlineData("/favicon.ico", false)]    // requisições que o listener deve ignorar
+    [InlineData("/callback/extra", false)]
+    [InlineData("/", false)]
+    [InlineData(null, false)]
+    public void IsCallbackPath_MatchesOnlyAuthenticationCallback(string? path, bool expected)
+    {
+        Assert.Equal(expected, DesktopAuthService.IsCallbackPath(path));
+    }
 }
