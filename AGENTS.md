@@ -100,7 +100,7 @@ powershell -ExecutionPolicy Bypass -File plugin\scripts\release.ps1 -Version 0.1
 ```
 
 > [!WARNING]
-> **Os testes de DPAPI exigem um logon interativo.** Qualquer teste que chame `ProtectedData.Protect/Unprotect(..., DataProtectionScope.CurrentUser)` só funciona numa sessão de logon real (SessionId ≥ 1). Num contexto SSH/`services.exe` o processo roda na Session 0 sem Logon SID (`S-1-5-5-*`) e sem `AuthenticationId`, e o Windows devolve `win32 = 5 Acesso negado` — o código é *fail-closed* por design, então a falha aparece como `SaveMasterLease → false`. Em sessão SSH o resultado esperado é **59/81** em `NodeAec.Connector.Tests` (22 falhas de DPAPI: as 20 históricas mais 2 testes que persistem lease em disco); numa sessão interativa os 81 devem passar. Não "corrigir" isso enfraquecendo o armazenamento nem marcando testes como Skip.
+> **Os testes de DPAPI exigem um logon interativo.** Qualquer teste que chame `ProtectedData.Protect/Unprotect(..., DataProtectionScope.CurrentUser)` só funciona numa sessão de logon real (SessionId ≥ 1). Num contexto SSH/`services.exe` o processo roda na Session 0 sem Logon SID (`S-1-5-5-*`) e sem `AuthenticationId`, e o Windows devolve `win32 = 5 Acesso negado` — o código é *fail-closed* por design, então a falha aparece como `SaveMasterLease → false`. Em sessão SSH o resultado esperado é **134/156** em `NodeAec.Connector.Tests` (22 falhas de DPAPI: as 20 históricas mais 2 testes que persistem lease em disco); numa sessão interativa os 156 devem passar. Não "corrigir" isso enfraquecendo o armazenamento nem marcando testes como Skip.
 
 Critérios de Aceite para Modificações:
 - Compilação limpa: **0 Erros**.
