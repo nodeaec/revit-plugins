@@ -3,10 +3,11 @@ using NodeAec.Connector.Models;
 namespace NodeAec.Connector.Diagnostics;
 
 /// <summary>
-/// Decisão pura de log do heartbeat de lease (M7): traduz um <see cref="SyncResult"/> na
-/// linha de WARN do log local, ou <c>null</c> quando não há nada a registrar. Os ramos de
-/// chave/cache usam <b>texto fixo</b> — nunca mensagem crua do servidor (M1) — e a única
-/// mensagem dinâmica é o mapeado de domínio do próprio resultado, já sem tokens.
+/// Decisão pura de log do heartbeat de lease (M7/P13): traduz um <see cref="SyncResult"/>
+/// na linha de WARN do log local, ou <c>null</c> quando não há nada a registrar. Todos os
+/// ramos são <b>texto fixo</b>: <see cref="SyncResult.Message"/> pode conter texto cru do
+/// servidor (caminho não mapeado), que a regra de sanitização do log proíbe — a UI é quem
+/// o exibe.
 /// </summary>
 internal static class HeartbeatLog
 {
@@ -20,7 +21,8 @@ internal static class HeartbeatLog
     {
         if (!result.Success)
         {
-            return $"Heartbeat de lease falhou: {result.Message}";
+            // Categoria estável (P13): a mensagem do resultado não entra no log.
+            return "Heartbeat de lease falhou (falha de sincronização).";
         }
 
         if (!result.KeysVerified)

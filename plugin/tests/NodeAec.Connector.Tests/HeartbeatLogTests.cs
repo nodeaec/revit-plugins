@@ -21,13 +21,15 @@ public class HeartbeatLogTests
     }
 
     [Fact]
-    public void WarningMessage_Failure_ReportsMappedDomainMessage()
+    public void WarningMessage_Failure_UsesStableCategoryInsteadOfResultMessage()
     {
-        var result = SyncResult.Failed("Servidor retornou código 503.");
+        // P13: `Message` em falha pode ser texto cru do servidor — categoria estável só.
+        var result = SyncResult.Failed("texto cru do servidor que não pode vazar para o log");
 
         string? warning = HeartbeatLog.WarningMessage(result);
 
-        Assert.Equal("Heartbeat de lease falhou: Servidor retornou código 503.", warning);
+        Assert.Equal("Heartbeat de lease falhou (falha de sincronização).", warning);
+        Assert.DoesNotContain("texto cru do servidor", warning);
     }
 
     [Fact]
@@ -72,6 +74,7 @@ public class HeartbeatLogTests
 
         string? warning = HeartbeatLog.WarningMessage(result);
 
-        Assert.Equal("Heartbeat de lease falhou: offline", warning);
+        Assert.Equal("Heartbeat de lease falhou (falha de sincronização).", warning);
+        Assert.DoesNotContain("offline", warning);
     }
 }
