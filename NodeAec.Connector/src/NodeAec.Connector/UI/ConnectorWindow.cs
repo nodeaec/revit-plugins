@@ -97,12 +97,12 @@ public class ConnectorWindow : Window
 
         var accountButtons = new StackPanel { Orientation = Orientation.Horizontal };
         _btnLogin = CreatePrimaryButton("Entrar com minha conta");
-        _btnLogin.Click += async (s, e) => await HandleBrowserLoginAsync();
+        _btnLogin.Click += async (s, e) => await WindowHandlerGuard.RunAsync(HandleBrowserLoginAsync, ReportHandlerError);
         accountButtons.Children.Add(_btnLogin);
 
         _btnLogout = CreateQuietButton("Sair da conta");
         _btnLogout.Margin = new Thickness(8, 0, 0, 0);
-        _btnLogout.Click += (s, e) => HandleLogout();
+        _btnLogout.Click += (s, e) => WindowHandlerGuard.Run(HandleLogout, ReportHandlerError);
         accountButtons.Children.Add(_btnLogout);
         accountContent.Children.Add(accountButtons);
         root.Children.Add(accountCard);
@@ -119,7 +119,7 @@ public class ConnectorWindow : Window
         licenseContent.Children.Add(_txtLicenseStatus);
 
         _btnSync = CreatePrimaryButton("Atualizar minhas licenças");
-        _btnSync.Click += async (s, e) => await HandleSyncAsync();
+        _btnSync.Click += async (s, e) => await WindowHandlerGuard.RunAsync(HandleSyncAsync, ReportHandlerError);
         licenseContent.Children.Add(_btnSync);
         root.Children.Add(licenseCard);
 
@@ -163,7 +163,7 @@ public class ConnectorWindow : Window
 
         _btnActivateKey = CreatePrimaryButton("Ativar");
         _btnActivateKey.Margin = new Thickness(8, 0, 0, 0);
-        _btnActivateKey.Click += async (s, e) => await HandleActivateKeyAsync();
+        _btnActivateKey.Click += async (s, e) => await WindowHandlerGuard.RunAsync(HandleActivateKeyAsync, ReportHandlerError);
         Grid.SetColumn(_btnActivateKey, 1);
         keyRow.Children.Add(_btnActivateKey);
         manualContent.Children.Add(keyRow);
@@ -339,7 +339,37 @@ public class ConnectorWindow : Window
         };
     }
 
+    /// <summary>
+    /// Atualiza os contadores de conta/licença a partir do armazenamento local. É chamada
+    /// do construtor e dos blocos <c>finally</c> dos handlers assíncronos, portanto é
+    /// <b>noexcept</b> por contrato (H1): uma exceção daqui escaparia pelo dispatcher do
+    /// WPF como <c>DispatcherUnhandledException</c> e encerraria o processo do Revit.
+    /// </summary>
     public void RefreshUiFromStorage()
+    {
+        try
+        {
+            RenderUiFromStorage();
+        }
+        catch (Exception ex)
+        {
+            // Renderização de estado é best-effort: registra a causa e deixa um fallback
+            // estático, sem nunca propagar para o `finally` que nos chama.
+            Diagnostics.ConnectorLog.Write("WARN", $"Falha ao atualizar a UI a partir do armazenamento: {ex.GetType().Name}.");
+            try
+            {
+                _txtLicenseStatus.Text = "Não foi possível atualizar o estado local das licenças.";
+                _txtLicenseStatus.Foreground = UiTheme.Brush(UiTheme.Accent);
+            }
+            catch
+            {
+                // Janela possivelmente já descartada: nada mais a reportar daqui.
+            }
+        }
+    }
+
+    /// <summary>Corpo de <see cref="RefreshUiFromStorage"/> — separado para que a casca seja a única zona de exceção.</summary>
+    private void RenderUiFromStorage()
     {
         var session = LeaseStorage.LoadSession();
         if (session.HasValue && !string.IsNullOrWhiteSpace(session.Value.Email))
@@ -561,6 +591,18 @@ public class ConnectorWindow : Window
     {
         _txtFeedback.Text = message;
         _txtFeedback.Foreground = UiTheme.Brush(color);
+    }
+
+    /// <summary>
+    /// Reporta ao usuário uma falha de handler que teria derrubado o dispatcher — texto
+    /// fixo e sanitizado (nome do tipo, nunca conteúdo da mensagem: o log é que recebe o
+    /// detalhe). Nunca lança; usado como callback do <see cref="WindowHandlerGuard"/>.
+    /// </summary>
+    private void ReportHandlerError(Exception ex)
+    {
+        SetFeedback(
+            $"Ocorreu um erro inesperado ({ex.GetType().Name}). Tente novamente; se persistir, reinicie o Revit.",
+            UiTheme.Accent);
     }
 
     private void OpenCatalog()

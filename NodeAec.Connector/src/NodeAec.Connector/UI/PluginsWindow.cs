@@ -96,12 +96,12 @@ public class PluginsWindow : Window
         // 3. Ações
         var actions = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 8, 0, 0) };
         _btnLogin = CreatePrimaryButton("Entrar com minha conta");
-        _btnLogin.Click += async (s, e) => await HandleBrowserLoginAsync();
+        _btnLogin.Click += async (s, e) => await WindowHandlerGuard.RunAsync(HandleBrowserLoginAsync, ReportHandlerError);
         actions.Children.Add(_btnLogin);
 
         _btnSync = CreateQuietButton("Atualizar lista");
         _btnSync.Margin = new Thickness(8, 0, 0, 0);
-        _btnSync.Click += async (s, e) => await HandleSyncAsync();
+        _btnSync.Click += async (s, e) => await WindowHandlerGuard.RunAsync(HandleSyncAsync, ReportHandlerError);
         actions.Children.Add(_btnSync);
         root.Children.Add(actions);
 
@@ -191,7 +191,42 @@ public class PluginsWindow : Window
         };
     }
 
+    /// <summary>
+    /// Renderiza a lista de plugins a partir do lease local. É chamada do construtor e dos
+    /// blocos <c>finally</c> dos handlers assíncronos, portanto é <b>noexcept</b> por
+    /// contrato (H1): uma exceção daqui escaparia pelo dispatcher do WPF e encerraria o
+    /// processo do Revit.
+    /// </summary>
     public void RefreshPlugins()
+    {
+        try
+        {
+            RenderPlugins();
+        }
+        catch (Exception ex)
+        {
+            Diagnostics.ConnectorLog.Write("WARN", $"Falha ao atualizar a lista de plugins: {ex.GetType().Name}.");
+            try
+            {
+                _pluginsPanel.Children.Clear();
+                _pluginsPanel.Children.Add(new TextBlock
+                {
+                    Text = "Não foi possível carregar a lista de plugins agora. Tente atualizar.",
+                    FontSize = 13,
+                    Foreground = UiTheme.Brush(UiTheme.Accent),
+                    Margin = new Thickness(0, 4, 0, 4),
+                    TextWrapping = TextWrapping.Wrap
+                });
+            }
+            catch
+            {
+                // Janela possivelmente já descartada: nada mais a reportar daqui.
+            }
+        }
+    }
+
+    /// <summary>Corpo de <see cref="RefreshPlugins"/> — separado para que a casca seja a única zona de exceção.</summary>
+    private void RenderPlugins()
     {
         _pluginsPanel.Children.Clear();
 
@@ -371,6 +406,18 @@ public class PluginsWindow : Window
     {
         _txtFeedback.Text = message;
         _txtFeedback.Foreground = UiTheme.Brush(color);
+    }
+
+    /// <summary>
+    /// Reporta ao usuário uma falha de handler que teria derrubado o dispatcher — texto
+    /// fixo e sanitizado (nome do tipo, nunca conteúdo da mensagem). Nunca lança; usado
+    /// como callback do <see cref="WindowHandlerGuard"/>.
+    /// </summary>
+    private void ReportHandlerError(Exception ex)
+    {
+        SetFeedback(
+            $"Ocorreu um erro inesperado ({ex.GetType().Name}). Tente novamente; se persistir, reinicie o Revit.",
+            UiTheme.Accent);
     }
 
     private static void OpenUrl(string url)
