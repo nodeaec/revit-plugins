@@ -34,6 +34,9 @@
     <Compile Include="..\..\src\NodeAec.Connector\Client\ConnectorApiClient.cs" Link="LinkedSources\Client\ConnectorApiClient.cs" />
     <Compile Include="..\..\src\NodeAec.Connector\Client\ProductLinks.cs" Link="LinkedSources\Client\ProductLinks.cs" />
     <Compile Include="..\..\src\NodeAec.Connector\Gate\NodeAecGate.cs" Link="LinkedSources\Gate\NodeAecGate.cs" />
+    <Compile Include="..\..\src\NodeAec.Connector\Diagnostics\HeartbeatLog.cs" Link="LinkedSources\Diagnostics\HeartbeatLog.cs" />
+    <Compile Include="..\..\src\NodeAec.Connector\UI\RibbonDecisions.cs" Link="LinkedSources\UI\RibbonDecisions.cs" />
+    <Compile Include="..\..\src\NodeAec.Connector\UI\UiState.cs" Link="LinkedSources\UI\UiState.cs" />
   </ItemGroup>
 
 </Project>

@@ -211,6 +211,17 @@ public static class LeaseStorage
     }
 
     /// <summary>
+    /// Apaga o estado de conta inteiro — lease mestre + sessão. É o primitivo do logout da
+    /// <c>ConnectorWindow</c>: sair da conta nunca pode deixar o lease de produtos para
+    /// trás, senão o gate continuaria valendo com a sessão encerrada (M7 — coberto por teste).
+    /// </summary>
+    public static void ClearAll()
+    {
+        ClearMasterLease();
+        ClearSession();
+    }
+
+    /// <summary>
     /// Decodifica o payload de um token JWT <b>sem</b> verificar assinatura criptográfica.
     /// Uso restrito a exibição (saudação, datas) — decisões de licença passam
     /// obrigatoriamente por <c>Gate.NodeAecGate</c>, que verifica a assinatura Ed25519.

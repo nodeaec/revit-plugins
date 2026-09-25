@@ -50,6 +50,22 @@ public class LeaseStorageTests : IDisposable
     }
 
     [Fact]
+    public void ClearAll_RemovesBothMasterLeaseAndSession()
+    {
+        // M7 — primitivo do logout: apaga lease E sessão. Escreve arquivos crus (sem
+        // DPAPI) porque o caminho testado é a limpeza, não a persistência criptográfica.
+        File.WriteAllText(LeaseStorage.GetLeaseFilePath(), "dummy-lease");
+        File.WriteAllText(LeaseStorage.GetSessionFilePath(), "dummy-session");
+        Assert.True(File.Exists(LeaseStorage.GetLeaseFilePath()));
+        Assert.True(File.Exists(LeaseStorage.GetSessionFilePath()));
+
+        LeaseStorage.ClearAll();
+
+        Assert.False(File.Exists(LeaseStorage.GetLeaseFilePath()));
+        Assert.False(File.Exists(LeaseStorage.GetSessionFilePath()));
+    }
+
+    [Fact]
     public void SaveAndLoadSession_PersistsNameEmailAndToken()
     {
         LeaseStorage.SaveSession("pablo@nodeaec.com.br", "jwt-user-token", "Pablo");

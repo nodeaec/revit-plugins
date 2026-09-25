@@ -230,47 +230,56 @@ public class PluginsWindow : Window
     {
         _pluginsPanel.Children.Clear();
 
-        if (!LoginRequirement.IsLoggedIn())
+        // M7: o ramo (logged-out / vazio / lista) e a ordenação ativos-primeiro são
+        // decisões puras em UiState, cobertas por testes headless.
+        bool isLoggedIn = LoginRequirement.IsLoggedIn();
+        IReadOnlyList<EntitlementItem> entitlements = Array.Empty<EntitlementItem>();
+        if (isLoggedIn)
         {
-            _btnLogin.Visibility = Visibility.Visible;
-            _btnSync.Visibility = Visibility.Collapsed;
-            _pluginsPanel.Children.Add(new TextBlock
-            {
-                Text = "Entre com sua conta para ver seus plugins aqui.",
-                FontSize = 13,
-                Foreground = UiTheme.Brush(UiTheme.TextSecondary),
-                Margin = new Thickness(0, 4, 0, 4),
-                TextWrapping = TextWrapping.Wrap
-            });
-            return;
+            string? jwtToken = LeaseStorage.LoadMasterLease();
+            var payload = string.IsNullOrWhiteSpace(jwtToken) ? null : LeaseStorage.ParseJwtPayload(jwtToken);
+            entitlements = payload?.Entitlements ?? new List<EntitlementItem>();
         }
 
-        _btnLogin.Visibility = Visibility.Collapsed;
-        _btnSync.Visibility = Visibility.Visible;
-
-        string? jwtToken = LeaseStorage.LoadMasterLease();
-        var payload = string.IsNullOrWhiteSpace(jwtToken) ? null : LeaseStorage.ParseJwtPayload(jwtToken);
-        var entitlements = payload?.Entitlements ?? new List<EntitlementItem>();
-
-        if (entitlements.Count == 0)
+        switch (UiState.PluginsBranch(isLoggedIn, entitlements.Count))
         {
-            _pluginsPanel.Children.Add(new TextBlock
-            {
-                Text = "Nenhum plugin vinculado à sua conta ainda.",
-                FontSize = 13,
-                Foreground = UiTheme.Brush(UiTheme.TextSecondary),
-                Margin = new Thickness(0, 4, 0, 8),
-                TextWrapping = TextWrapping.Wrap
-            });
-            var btnCatalog = CreateLinkButton("Conhecer o catálogo de plugins ↗");
-            btnCatalog.Click += (s, e) => OpenUrl(ConnectorConfig.CatalogUrl);
-            _pluginsPanel.Children.Add(btnCatalog);
-            return;
-        }
+            case PluginsView.LoggedOut:
+                _btnLogin.Visibility = Visibility.Visible;
+                _btnSync.Visibility = Visibility.Collapsed;
+                _pluginsPanel.Children.Add(new TextBlock
+                {
+                    Text = UiState.LoggedOutPluginsText,
+                    FontSize = 13,
+                    Foreground = UiTheme.Brush(UiTheme.TextSecondary),
+                    Margin = new Thickness(0, 4, 0, 4),
+                    TextWrapping = TextWrapping.Wrap
+                });
+                return;
 
-        foreach (var ent in entitlements.OrderBy(e => e.IsActive() ? 0 : 1))
-        {
-            _pluginsPanel.Children.Add(BuildPluginCard(ent));
+            case PluginsView.Empty:
+                _btnLogin.Visibility = Visibility.Collapsed;
+                _btnSync.Visibility = Visibility.Visible;
+                _pluginsPanel.Children.Add(new TextBlock
+                {
+                    Text = UiState.NoPluginsText,
+                    FontSize = 13,
+                    Foreground = UiTheme.Brush(UiTheme.TextSecondary),
+                    Margin = new Thickness(0, 4, 0, 8),
+                    TextWrapping = TextWrapping.Wrap
+                });
+                var btnCatalog = CreateLinkButton("Conhecer o catálogo de plugins ↗");
+                btnCatalog.Click += (s, e) => OpenUrl(ConnectorConfig.CatalogUrl);
+                _pluginsPanel.Children.Add(btnCatalog);
+                return;
+
+            default:
+                _btnLogin.Visibility = Visibility.Collapsed;
+                _btnSync.Visibility = Visibility.Visible;
+                foreach (var ent in UiState.PluginsActiveFirst(entitlements))
+                {
+                    _pluginsPanel.Children.Add(BuildPluginCard(ent));
+                }
+                return;
         }
     }
 

@@ -168,20 +168,13 @@ public class App : IExternalApplication
                 {
                     var client = new ConnectorApiClient();
                     var heartbeat = await client.ValidateHeartbeatAsync(token).ConfigureAwait(false);
-                    if (!heartbeat.Success)
+
+                    // M7: a decisão de log (texto fixo nos ramos de chave/cache — nunca
+                    // mensagem crua do servidor) vive em HeartbeatLog, coberta por teste.
+                    string? warning = Diagnostics.HeartbeatLog.WarningMessage(heartbeat);
+                    if (warning != null)
                     {
-                        Diagnostics.ConnectorLog.Write("WARN", $"Heartbeat de lease falhou: {heartbeat.Message}");
-                    }
-                    else if (!heartbeat.KeysVerified)
-                    {
-                        // M1: texto fixo e sanitizado (nunca mensagem do servidor) — o lease
-                        // renovou sem chave para conferir a assinatura; o gate nega até o
-                        // JWKS voltar a ficar disponível.
-                        Diagnostics.ConnectorLog.Write("WARN", "Heartbeat renovou o lease sem verificar a assinatura (JWKS indisponível).");
-                    }
-                    else if (!heartbeat.JwksRefreshed)
-                    {
-                        Diagnostics.ConnectorLog.Write("WARN", "Heartbeat validou o lease, mas o cache JWKS não pôde ser renovado.");
+                        Diagnostics.ConnectorLog.Write("WARN", warning);
                     }
                 }
             }
@@ -256,10 +249,10 @@ public class App : IExternalApplication
     {
         try
         {
-            if (panel.GetItems().Any(i => string.Equals(i.Name, buttonData.Name, StringComparison.OrdinalIgnoreCase)))
+            var items = panel.GetItems().ToList();
+            if (RibbonDecisions.ContainsName(items.Select(i => i.Name), buttonData.Name))
             {
-                return panel.GetItems()
-                    .FirstOrDefault(i => string.Equals(i.Name, buttonData.Name, StringComparison.OrdinalIgnoreCase)) as PushButton;
+                return items.FirstOrDefault(i => string.Equals(i.Name, buttonData.Name, StringComparison.OrdinalIgnoreCase)) as PushButton;
             }
             return panel.AddItem(buttonData) as PushButton;
         }
@@ -273,24 +266,24 @@ public class App : IExternalApplication
     {
         try
         {
-            var existing = panel.GetItems()
-                .Select(i => i.Name)
-                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+            var existing = panel.GetItems().Select(i => i.Name).ToList();
 
-            bool firstMissing = !existing.Contains(first.Name);
-            bool secondMissing = !existing.Contains(second.Name);
-
-            if (!firstMissing && !secondMissing) return;
-
-            // Empilha os dois botões pequenos; se só faltar um, adiciona avulso.
-            if (firstMissing && secondMissing)
+            // M7: a decisão (empilhar / avulso / nada) é pura e testada em RibbonDecisions;
+            // aqui ficam somente os comandos de UI.
+            switch (RibbonDecisions.PlanStackedInsertion(existing, first.Name, second.Name))
             {
-                panel.AddStackedItems(first, second);
-                return;
+                case StackedInsertion.None:
+                    return;
+                case StackedInsertion.StackBoth:
+                    panel.AddStackedItems(first, second);
+                    return;
+                case StackedInsertion.AddFirstOnly:
+                    AddButtonIfMissing(panel, first);
+                    return;
+                case StackedInsertion.AddSecondOnly:
+                    AddButtonIfMissing(panel, second);
+                    return;
             }
-
-            if (firstMissing) AddButtonIfMissing(panel, first);
-            if (secondMissing) AddButtonIfMissing(panel, second);
         }
         catch
         {

@@ -371,57 +371,25 @@ public class ConnectorWindow : Window
     /// <summary>Corpo de <see cref="RefreshUiFromStorage"/> — separado para que a casca seja a única zona de exceção.</summary>
     private void RenderUiFromStorage()
     {
+        // M7: os mapeamentos puros (conta e status) vivem em UiState e são testados
+        // headless; aqui ficam só as atribuições de elementos WPF.
         var session = LeaseStorage.LoadSession();
-        if (session.HasValue && !string.IsNullOrWhiteSpace(session.Value.Email))
-        {
-            var name = session.Value.Name;
-            _txtAccountTitle.Text = string.IsNullOrWhiteSpace(name)
-                ? "Olá! Você está conectado como:"
-                : $"Olá, {name}! Você está conectado como:";
-            _txtAccountHint.Text = session.Value.Email ?? string.Empty;
-            _btnLogin.Visibility = Visibility.Collapsed;
-            _btnLogout.Visibility = Visibility.Visible;
-        }
-        else
-        {
-            _txtAccountTitle.Text = "Você ainda não entrou.";
-            _txtAccountHint.Text = "Entre com sua conta para liberar seus plugins neste computador.";
-            _btnLogin.Visibility = Visibility.Visible;
-            _btnLogout.Visibility = Visibility.Collapsed;
-        }
+        var account = UiState.Account(session?.Name, session?.Email);
+        _txtAccountTitle.Text = account.Title;
+        _txtAccountHint.Text = account.Hint;
+        _btnLogin.Visibility = account.ShowLogin ? Visibility.Visible : Visibility.Collapsed;
+        _btnLogout.Visibility = account.ShowLogout ? Visibility.Visible : Visibility.Collapsed;
 
         string? jwtToken = LeaseStorage.LoadMasterLease();
-        if (string.IsNullOrWhiteSpace(jwtToken))
+        var payload = string.IsNullOrWhiteSpace(jwtToken) ? null : LeaseStorage.ParseJwtPayload(jwtToken);
+        var (statusText, tone) = UiState.LicenseStatus(jwtToken, payload);
+        _txtLicenseStatus.Text = statusText;
+        _txtLicenseStatus.Foreground = UiTheme.Brush(tone switch
         {
-            _txtLicenseStatus.Text = "Nenhuma licença encontrada neste computador ainda.";
-            _txtLicenseStatus.Foreground = UiTheme.Brush(UiTheme.TextSecondary);
-            return;
-        }
-
-        var payload = LeaseStorage.ParseJwtPayload(jwtToken);
-        if (payload == null)
-        {
-            _txtLicenseStatus.Text = "Não conseguimos ler as licenças salvas. Tente atualizar.";
-            _txtLicenseStatus.Foreground = UiTheme.Brush(UiTheme.Accent);
-            return;
-        }
-
-        // `exp` ausente/fora da faixa vira null (M5): nunca lançar nem imprimir 01/01/1970.
-        if (payload.ExpiresAt is not { } exp)
-        {
-            _txtLicenseStatus.Text = "Não foi possível ler o prazo das licenças salvas. Clique em atualizar.";
-            _txtLicenseStatus.Foreground = UiTheme.Brush(UiTheme.Accent);
-        }
-        else if (payload.IsExpired)
-        {
-            _txtLicenseStatus.Text = $"Suas licenças estão desatualizadas desde {exp:dd/MM/yyyy}. Conecte-se à internet e clique em atualizar.";
-            _txtLicenseStatus.Foreground = UiTheme.Brush(UiTheme.Accent);
-        }
-        else
-        {
-            _txtLicenseStatus.Text = $"Tudo certo — suas licenças estão atualizadas até {exp:dd/MM/yyyy}.";
-            _txtLicenseStatus.Foreground = UiTheme.Brush(UiTheme.Primary);
-        }
+            LicenseStatusTone.Neutral => UiTheme.TextSecondary,
+            LicenseStatusTone.Warning => UiTheme.Accent,
+            _ => UiTheme.Primary,
+        });
     }
 
     private async System.Threading.Tasks.Task HandleBrowserLoginAsync()
@@ -585,8 +553,9 @@ public class ConnectorWindow : Window
 
         if (confirm == MessageBoxResult.Yes)
         {
-            LeaseStorage.ClearMasterLease();
-            LeaseStorage.ClearSession();
+            // M7: um único primitivo (testado) apaga lease + sessão — sair nunca pode
+            // deixar o lease de produtos para trás.
+            LeaseStorage.ClearAll();
             SetFeedback("Você saiu da conta.", UiTheme.TextSecondary);
             RefreshUiFromStorage();
         }
