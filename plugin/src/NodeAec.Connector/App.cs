@@ -141,19 +141,16 @@ public class App : IExternalApplication
         btnCatalogData.LargeImage = UiTheme.CatalogIcon(large: true);
         AddStackedButtonsIfMissing(connectorPanel, btnPluginsData, btnCatalogData);
 
-        // 7. Hooks defensivos de ciclo de vida do Revit Ribbon
+        // 7. Hooks defensivos de ciclo de vida do Revit Ribbon. Handlers nomeados e
+        // estáticos com "-=" antes do "+=": se o add-in recarregar no mesmo processo
+        // (Add-In Manager), os delegates não se acumulam (L10).
         try
         {
-            application.ControlledApplication.ApplicationInitialized += (s, e) =>
-            {
-                DeduplicateRibbonTabs(TabName);
-                CleanRogueRibbonElements();
-            };
+            application.ControlledApplication.ApplicationInitialized -= OnApplicationInitialized;
+            application.ControlledApplication.ApplicationInitialized += OnApplicationInitialized;
 
-            ComponentManager.UIElementActivated += (s, e) =>
-            {
-                DeduplicateRibbonTabs(TabName);
-            };
+            ComponentManager.UIElementActivated -= OnUiElementActivated;
+            ComponentManager.UIElementActivated += OnUiElementActivated;
         }
         catch
         {
@@ -207,6 +204,19 @@ public class App : IExternalApplication
                 Diagnostics.ConnectorLog.Write("WARN", $"Heartbeat de lease interrompido: {ex.GetType().Name}.");
             }
         });
+    }
+
+    /// <summary>Reação ao evento <c>ApplicationInitialized</c>: deduplica a aba e remove painéis fantasmas.</summary>
+    private static void OnApplicationInitialized(object? sender, EventArgs e)
+    {
+        DeduplicateRibbonTabs(TabName);
+        CleanRogueRibbonElements();
+    }
+
+    /// <summary>Reação à ativação de qualquer elemento da Ribbon: mantém a aba única.</summary>
+    private static void OnUiElementActivated(object? sender, EventArgs e)
+    {
+        DeduplicateRibbonTabs(TabName);
     }
 
     public Result OnShutdown(UIControlledApplication application)
