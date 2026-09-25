@@ -406,8 +406,13 @@ public class ConnectorWindow : Window
             return;
         }
 
-        var exp = payload.ExpiresAt;
-        if (payload.IsExpired)
+        // `exp` ausente/fora da faixa vira null (M5): nunca lançar nem imprimir 01/01/1970.
+        if (payload.ExpiresAt is not { } exp)
+        {
+            _txtLicenseStatus.Text = "Não foi possível ler o prazo das licenças salvas. Clique em atualizar.";
+            _txtLicenseStatus.Foreground = UiTheme.Brush(UiTheme.Accent);
+        }
+        else if (payload.IsExpired)
         {
             _txtLicenseStatus.Text = $"Suas licenças estão desatualizadas desde {exp:dd/MM/yyyy}. Conecte-se à internet e clique em atualizar.";
             _txtLicenseStatus.Foreground = UiTheme.Brush(UiTheme.Accent);

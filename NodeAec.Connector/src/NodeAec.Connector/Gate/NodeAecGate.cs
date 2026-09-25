@@ -114,10 +114,14 @@ public static class NodeAecGate
                 return GateResult.Failure("A concessão de licenças foi emitida para outra estação de trabalho (Hardware ID divergente).");
             }
 
-            // 2. Validação do prazo de tolerância offline (30 dias)
+            // 2. Validação do prazo de tolerância offline (30 dias). Sem `exp` plausível
+            //    `IsExpired` já é true; a mensagem distingue prazo ilegível de prazo passado
+            //    para nunca imprimir 01/01/1970 nem formatar um nulo.
             if (payload.IsExpired)
             {
-                return GateResult.Failure($"O prazo de tolerância offline expirou em {payload.ExpiresAt:dd/MM/yyyy}. Conecte-se à internet para sincronizar.");
+                return payload.ExpiresAt is { } exp
+                    ? GateResult.Failure($"O prazo de tolerância offline expirou em {exp:dd/MM/yyyy}. Conecte-se à internet para sincronizar.")
+                    : GateResult.Failure("O prazo da licença local não pôde ser lido. Conecte-se à internet e clique em atualizar no Node.aec Connector.");
             }
 
             // 3. Validação do produto específico na lista de concessões
