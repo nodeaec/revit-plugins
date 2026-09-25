@@ -1,4 +1,5 @@
 using System;
+using System.Globalization;
 using System.Text.Json.Serialization;
 
 namespace NodeAec.Connector.Models;
@@ -29,13 +30,20 @@ public class EntitlementItem
     [JsonPropertyName("expiresAt")]
     public string? ExpiresAtString { get; set; }
 
+    /// <summary>
+    /// Prazo de expiração interpretado de forma determinística: cultura invariante (uma
+    /// data no formato do servidor nunca depende do formato regional da máquina) e
+    /// <see cref="DateTimeStyles.AssumeUniversal"/> — sem offset explícito, a data vale
+    /// meia-noite UTC, não meia-noite local (a máquina não é adiantada/atrasada na
+    /// expiração pelo próprio fuso). Inválido/fora da faixa → <c>null</c>.
+    /// </summary>
     [JsonIgnore]
     public DateTimeOffset? ExpiresAt
     {
         get
         {
             if (string.IsNullOrWhiteSpace(ExpiresAtString)) return null;
-            if (DateTimeOffset.TryParse(ExpiresAtString, out var dt)) return dt;
+            if (DateTimeOffset.TryParse(ExpiresAtString, CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal, out var dt)) return dt;
             return null;
         }
     }
