@@ -19,25 +19,52 @@ namespace NodeAec.Connector.Client;
 /// Executa sincronização do Master Entitlements Lease, ativação de chaves avulsas,
 /// renovação periódica (heartbeat) e desativação de assentos.
 /// </summary>
-public class ConnectorApiClient : IDisposable
+public class ConnectorApiClient
 {
+    /// <summary>
+    /// Tempo explícito por chamada (M6). O default do <see cref="HttpClient"/> é 100 s —
+    /// um clique de "Atualizar" poderia pendurar a UI por minutos em rede ruim.
+    /// </summary>
+    private static readonly TimeSpan RequestTimeout = TimeSpan.FromSeconds(30);
+
+    /// <summary>
+    /// Cliente HTTP único de processo (M6): handshake TCP+TLS e resolução DNS uma vez por
+    /// sessão do Revit, em vez de um por ação do usuário — churn de sockets é
+    /// particularmente caro em net48/Revit 2023-2024 (HTTP.sys + DNS caching). É seguro
+    /// compartilhar entre chamadas concorrentes desde que os cabeçalhos (Authorization,
+    /// etc.) fiquem na <see cref="HttpRequestMessage"/> de cada requisição, como já ocorre.
+    /// Nunca é descartado pelos consumidores.
+    /// </summary>
+    private static readonly HttpClient SharedHttpClient = CreateSharedHttpClient();
+
     private readonly HttpClient _httpClient;
-    private readonly bool _ownsHttpClient;
     private readonly string _baseUrl;
 
+    /// <summary>
+    /// Cria o cliente de API. Sem <paramref name="httpClient"/>, usa o
+    /// <see cref="SharedHttpClient"/> de processo (compartilhado e nunca descartado por
+    /// esta instância); um cliente injetado continua sendo responsabilidade do chamador.
+    /// </summary>
+    /// <param name="baseUrl">Base da API; quando nula usa <c>ConnectorConfig.ApiBaseUrl</c>.</param>
+    /// <param name="httpClient">Cliente HTTP alternativo (testes/mocks); não é possuído nem descartado aqui.</param>
     public ConnectorApiClient(string? baseUrl = null, HttpClient? httpClient = null)
     {
         _baseUrl = (baseUrl ?? ConnectorConfig.ApiBaseUrl).TrimEnd('/');
-        if (httpClient != null)
+        _httpClient = httpClient ?? SharedHttpClient;
+    }
+
+    /// <summary>
+    /// Monta o <see cref="HttpClient"/> de processo com timeout explícito e
+    /// <c>User-Agent</c> identificando versão do add-in (facilita diagnóstico no servidor).
+    /// </summary>
+    private static HttpClient CreateSharedHttpClient()
+    {
+        var client = new HttpClient(new HttpClientHandler())
         {
-            _httpClient = httpClient;
-            _ownsHttpClient = false;
-        }
-        else
-        {
-            _httpClient = new HttpClient();
-            _ownsHttpClient = true;
-        }
+            Timeout = RequestTimeout,
+        };
+        client.DefaultRequestHeaders.UserAgent.ParseAdd($"NodeAec.Connector/{ConnectorConfig.Version}");
+        return client;
     }
 
     /// <summary>
@@ -477,11 +504,4 @@ public class ConnectorApiClient : IDisposable
         return $"Servidor retornou código {statusCode}.";
     }
 
-    public void Dispose()
-    {
-        if (_ownsHttpClient)
-        {
-            _httpClient.Dispose();
-        }
-    }
 }

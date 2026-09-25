@@ -38,7 +38,7 @@ public class ConnectorApiClientTests : IDisposable
     [Fact]
     public async Task SyncMasterEntitlementsAsync_WithoutToken_FailsFast()
     {
-        using var client = new ConnectorApiClient();
+        var client = new ConnectorApiClient();
 
         var result = await client.SyncMasterEntitlementsAsync(string.Empty);
 
@@ -101,7 +101,7 @@ public class ConnectorApiClientTests : IDisposable
         });
 
         using var httpClient = new HttpClient(handler);
-        using var client = new ConnectorApiClient("https://api.test", httpClient);
+        var client = new ConnectorApiClient("https://api.test", httpClient);
 
         var result = await client.SyncMasterEntitlementsAsync("valid-user-jwt");
 
@@ -139,7 +139,7 @@ public class ConnectorApiClientTests : IDisposable
             });
 
         using var httpClient = new HttpClient(handler);
-        using var client = new ConnectorApiClient("https://api.test", httpClient);
+        var client = new ConnectorApiClient("https://api.test", httpClient);
 
         var result = await client.SyncMasterEntitlementsAsync("valid-user-jwt");
 
@@ -155,7 +155,7 @@ public class ConnectorApiClientTests : IDisposable
         // O JWKS servido traz a chave de teste; o lease vem assinado por chave forjada.
         string forgedLease = CreateForgedMasterLease(HardwareId.GetMachineId());
         using var httpClient = new HttpClient(HandlerServing(new { success = true, leaseToken = forgedLease }));
-        using var client = new ConnectorApiClient("https://api.test", httpClient);
+        var client = new ConnectorApiClient("https://api.test", httpClient);
 
         var result = await client.SyncMasterEntitlementsAsync("valid-user-jwt");
 
@@ -177,7 +177,7 @@ public class ConnectorApiClientTests : IDisposable
             new List<EntitlementItem> { new EntitlementItem { Slug = "revit-automator", Status = "active" } });
 
         using var httpClient = new HttpClient(HandlerServing(new { success = true, leaseToken = leaseForAnotherMachine }));
-        using var client = new ConnectorApiClient("https://api.test", httpClient);
+        var client = new ConnectorApiClient("https://api.test", httpClient);
 
         var result = await client.SyncMasterEntitlementsAsync("valid-user-jwt");
 
@@ -198,7 +198,7 @@ public class ConnectorApiClientTests : IDisposable
             scope: "plugin-license");
 
         using var httpClient = new HttpClient(HandlerServing(new { success = true, leaseToken = pluginScopedLease }));
-        using var client = new ConnectorApiClient("https://api.test", httpClient);
+        var client = new ConnectorApiClient("https://api.test", httpClient);
 
         var result = await client.SyncMasterEntitlementsAsync("valid-user-jwt");
 
@@ -217,7 +217,7 @@ public class ConnectorApiClientTests : IDisposable
             new List<EntitlementItem> { new EntitlementItem { Slug = "revit-automator", Status = "active" } });
 
         using var httpClient = new HttpClient(HandlerServing(new { success = true, leaseToken = signedLease }, jwksAvailable: false));
-        using var client = new ConnectorApiClient("https://api.test", httpClient);
+        var client = new ConnectorApiClient("https://api.test", httpClient);
 
         var result = await client.SyncMasterEntitlementsAsync("valid-user-jwt");
 
@@ -244,7 +244,7 @@ public class ConnectorApiClientTests : IDisposable
             new List<EntitlementItem> { new EntitlementItem { Slug = "revit-automator", Status = "active" } });
 
         using var httpClient = new HttpClient(HandlerServing(new { success = true, leaseToken = signedLease }, jwksAvailable: false));
-        using var client = new ConnectorApiClient("https://api.test", httpClient);
+        var client = new ConnectorApiClient("https://api.test", httpClient);
 
         var result = await client.SyncMasterEntitlementsAsync("valid-user-jwt");
 
@@ -263,7 +263,7 @@ public class ConnectorApiClientTests : IDisposable
         string forgedRenewal = CreateForgedMasterLease(HardwareId.GetMachineId());
         using var httpClient = new HttpClient(HandlerServing(
             new { success = true, valid = true, scope = "master-lease", leaseToken = forgedRenewal }));
-        using var client = new ConnectorApiClient("https://api.test", httpClient);
+        var client = new ConnectorApiClient("https://api.test", httpClient);
 
         // Token de entrada via parâmetro: o arrange não grava nada em disco.
         var result = await client.ValidateHeartbeatAsync("lease-existente.nao-gravado.token");
@@ -292,7 +292,7 @@ public class ConnectorApiClientTests : IDisposable
             });
 
         using var httpClient = new HttpClient(handler);
-        using var client = new ConnectorApiClient("https://api.test", httpClient);
+        var client = new ConnectorApiClient("https://api.test", httpClient);
         LeaseStorage.SaveMasterLease("hdr.payload.sig");
 
         var result = await client.ValidateHeartbeatAsync();
@@ -311,7 +311,7 @@ public class ConnectorApiClientTests : IDisposable
             });
 
         using var httpClient = new HttpClient(handler);
-        using var client = new ConnectorApiClient("https://api.test", httpClient);
+        var client = new ConnectorApiClient("https://api.test", httpClient);
         LeaseStorage.SaveMasterLease("hdr.payload.sig");
 
         var result = await client.ValidateHeartbeatAsync();
@@ -337,7 +337,7 @@ public class ConnectorApiClientTests : IDisposable
             });
 
         using var httpClient = new HttpClient(handler);
-        using var client = new ConnectorApiClient("https://api.test", httpClient);
+        var client = new ConnectorApiClient("https://api.test", httpClient);
         LeaseStorage.SaveMasterLease("hdr.payload.sig");
 
         var result = await client.ValidateHeartbeatAsync();
@@ -383,7 +383,7 @@ public class ConnectorApiClientTests : IDisposable
                 });
 
         using var httpClient = new HttpClient(handler);
-        using var client = new ConnectorApiClient("https://api.test", httpClient);
+        var client = new ConnectorApiClient("https://api.test", httpClient);
         LeaseStorage.SaveMasterLease("old.payload.sig");
 
         var result = await client.ValidateHeartbeatAsync();
@@ -420,7 +420,7 @@ public class ConnectorApiClientTests : IDisposable
         });
 
         using var httpClient = new HttpClient(handler);
-        using var client = new ConnectorApiClient("https://api.test", httpClient);
+        var client = new ConnectorApiClient("https://api.test", httpClient);
 
         var result = await client.ActivateKeyAsync("NAEC-KEY1-KEY2-KEY3-KEY4");
 
@@ -461,7 +461,7 @@ public class ConnectorApiClientTests : IDisposable
         });
 
         using var httpClient = new HttpClient(handler);
-        using var client = new ConnectorApiClient("https://api.test", httpClient);
+        var client = new ConnectorApiClient("https://api.test", httpClient);
 
         var result = await client.ActivateKeyAsync("NAEC-KEY1-KEY2-KEY3-KEY4");
 

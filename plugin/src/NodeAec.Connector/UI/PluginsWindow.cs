@@ -332,7 +332,7 @@ public class PluginsWindow : Window
             var authService = new DesktopAuthService();
             string userToken = await authService.LoginViaBrowserAsync().ConfigureAwait(true);
 
-            using var client = new ConnectorApiClient();
+            var client = new ConnectorApiClient();
             var syncResult = await client.SyncMasterEntitlementsAsync(userToken).ConfigureAwait(true);
 
             if (syncResult.Success)
@@ -377,7 +377,7 @@ public class PluginsWindow : Window
         try
         {
             var session = LeaseStorage.LoadSession();
-            using var client = new ConnectorApiClient();
+            var client = new ConnectorApiClient();
 
             var result = session.HasValue && !string.IsNullOrWhiteSpace(session.Value.Token)
                 ? await client.SyncMasterEntitlementsAsync(session.Value.Token).ConfigureAwait(true)

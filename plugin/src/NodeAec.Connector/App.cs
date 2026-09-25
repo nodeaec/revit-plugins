@@ -166,7 +166,7 @@ public class App : IExternalApplication
                 string? token = LeaseStorage.LoadMasterLease();
                 if (!string.IsNullOrWhiteSpace(token))
                 {
-                    using var client = new ConnectorApiClient();
+                    var client = new ConnectorApiClient();
                     var heartbeat = await client.ValidateHeartbeatAsync(token).ConfigureAwait(false);
                     if (!heartbeat.Success)
                     {

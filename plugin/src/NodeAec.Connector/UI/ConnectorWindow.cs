@@ -435,7 +435,7 @@ public class ConnectorWindow : Window
             string userToken = await authService.LoginViaBrowserAsync().ConfigureAwait(true);
 
             SetFeedback("Pronto! Buscando suas licenças...", UiTheme.Primary);
-            using var client = new ConnectorApiClient();
+            var client = new ConnectorApiClient();
             var syncResult = await client.SyncMasterEntitlementsAsync(userToken).ConfigureAwait(true);
 
             if (syncResult.Success)
@@ -482,7 +482,7 @@ public class ConnectorWindow : Window
         try
         {
             var session = LeaseStorage.LoadSession();
-            using var client = new ConnectorApiClient();
+            var client = new ConnectorApiClient();
 
             SyncResult result;
             if (session.HasValue && !string.IsNullOrWhiteSpace(session.Value.Token))
@@ -531,7 +531,7 @@ public class ConnectorWindow : Window
 
         try
         {
-            using var client = new ConnectorApiClient();
+            var client = new ConnectorApiClient();
             var result = await client.ActivateKeyAsync(key).ConfigureAwait(true);
 
             if (result.Success)
