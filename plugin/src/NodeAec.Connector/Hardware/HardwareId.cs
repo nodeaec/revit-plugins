@@ -48,10 +48,11 @@ public static class HardwareId
         using var sha = SHA256.Create();
         var bytes = sha.ComputeHash(Encoding.UTF8.GetBytes($"{guid}:{Environment.MachineName}"));
 
-        // BitConverter em vez de Convert.ToHexString (que só existe em .NET 5+): produz o
-        // MESMO hexadecimal (maiúsculo, sem separadores) após remover os traços — o
-        // identificador da máquina não pode mudar, senão todas as licenças já emitidas
-        // deixariam de corresponder a este computador.
+        // BitConverter em vez de Convert.ToHexString (que só existe em .NET 5+): ambos
+        // produzem o mesmo hexadecimal maiúsculo; os traços são removidos e por fim o
+        // valor é convertido para minúsculas. Esse formato exato (64 hex minúsculas, sem
+        // separadores) não pode mudar, senão todas as licenças já emitidas deixariam de
+        // corresponder a este computador.
         _cachedMachineId = BitConverter.ToString(bytes).Replace("-", string.Empty).ToLowerInvariant();
         return _cachedMachineId;
     }
