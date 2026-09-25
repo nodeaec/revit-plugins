@@ -62,10 +62,18 @@ Add Windows DPAPI and ensure dependency DLLs are staged:
 </ItemGroup>
 
 <PropertyGroup>
-  <!-- Ensures ProtectedData.dll is copied to the addin output folder -->
+  <!-- Copies NuGet dependency DLLs to the add-in folder, never RevitAPI*.dll -->
   <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
 </PropertyGroup>
 ```
+
+> [!NOTE]
+> `System.Security.Cryptography.ProtectedData.dll` is a staged payload item **only for
+> `net48`** (Revit 2023/2024), where the NuGet package is its only source. On
+> `net8.0-windows`/`net10.0-windows` (Revit 2025+) the assembly ships inside the host's
+> `Microsoft.WindowsDesktop.App` runtime (verified in the 8.0.31 and 10.0.12 packs), so it
+> must **not** be copied into the add-in folder. Encrypting with `ProtectedData` is
+> unaffected on every target.
 
 ### Recipe 2: Core Files to Copy
 Copy from `github.com/nodeaec/revit-plugins` (`NodeAec.Licensing.Sample/src/NodeAec.Licensing.Sample/Gate/`):
@@ -159,7 +167,7 @@ public class MeuComandoComercial : IExternalCommand
 ## ✅ Validation Checklist
 
 - [ ] Project builds with **0 errors**.
-- [ ] `System.Security.Cryptography.ProtectedData.dll` is present in the add-in output folder.
+- [ ] `System.Security.Cryptography.ProtectedData.dll` is present in the add-in output folder **only when targeting `net48`** (Revit 2023/2024); on `net8.0-windows`/`net10.0-windows` it is provided by `Microsoft.WindowsDesktop.App` and must be absent.
 - [ ] No `RevitAPI*.dll` assemblies copied into output.
 - [ ] No HTTP clients or login forms implemented inside the partner plugin.
 - [ ] All plugin commands and panels are consolidated under the **`Node.aec`** tab.

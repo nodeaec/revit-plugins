@@ -47,7 +47,9 @@ A compliant release package must contain:
 2. **Plugin DLL**:
    - `NodeAec.Licensing.Sample.dll` (or target plugin DLL).
 3. **Runtime Dependencies**:
-   - `System.Security.Cryptography.ProtectedData.dll`.
+   - `System.Security.Cryptography.ProtectedData.dll` — **`net48` targets only** (Revit
+     2023/2024). On `net8.0-windows`/`net10.0-windows` (Revit 2025+) it is provided by the
+     host's `Microsoft.WindowsDesktop.App` runtime and must NOT be staged.
 4. **Resources & Assets**:
    - `Resources/` containing PNG icons.
    - `README.md` (human documentation included with the release).
@@ -74,7 +76,7 @@ A compliant release package must contain:
 - [ ] `release.ps1` runs without terminating errors.
 - [ ] Staging directory (`release/stage/...`) is clean and free of leftover build artifacts.
 - [ ] No `RevitAPI*.dll` assemblies are present in the stage or `.zip` file.
-- [ ] `System.Security.Cryptography.ProtectedData.dll` is included in the stage and `.zip`.
+- [ ] `System.Security.Cryptography.ProtectedData.dll` is in the stage and `.zip` **for `net48` (Revit 2023/2024)**, and absent from them for `net8.0-windows`/`net10.0-windows`.
 - [ ] The generated `.zip` has a valid SHA-256 hash printed.
 - [ ] When `-Install` is used, the `.addin` and assemblies exist in `C:\ProgramData\Autodesk\Revit\Addins\<Year>\`.
 - [ ] Launching Revit recognizes the newly installed add-in without load warnings.

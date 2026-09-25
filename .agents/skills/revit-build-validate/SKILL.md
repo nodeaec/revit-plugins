@@ -38,7 +38,7 @@ A build is valid ONLY when ALL of the following pass:
 - **CRITICAL**: Revit API DLLs must **NEVER** appear in the output directory (`bin/Release/...`) or staged zip. Packaging Revit API DLLs causes silent crashes and type loading errors in Revit.
 
 ### 3. Runtime Dependency Presence
-- All non-Revit dependencies (such as `System.Security.Cryptography.ProtectedData.dll`) MUST be present in the output folder.
+- All non-Revit dependencies MUST be present in the output folder. The one exception is `System.Security.Cryptography.ProtectedData.dll`: it belongs in the output **only for `net48`** (Revit 2023/2024), where the NuGet package is its only source. On `net8.0-windows`/`net10.0-windows` it is framework-provided by `Microsoft.WindowsDesktop.App` and is correctly absent from `bin/`.
 - Ensure the project file contains:
   ```xml
   <PropertyGroup>
@@ -86,6 +86,6 @@ A build is valid ONLY when ALL of the following pass:
 
 - [ ] `dotnet build` executes with **0 errors**.
 - [ ] No `RevitAPI*.dll` or `AdWindows.dll` exists in the `bin/Release/...` directory.
-- [ ] `System.Security.Cryptography.ProtectedData.dll` is present in the `bin/Release/...` directory.
+- [ ] `System.Security.Cryptography.ProtectedData.dll` is present in `bin/<RevitYear>/<Configuration>/<tfm>/` **for `net48` (Revit 2023/2024)**, and absent there for `net8.0-windows`/`net10.0-windows` (provided by `Microsoft.WindowsDesktop.App`).
 - [ ] The assembly resolution hook is defined in the `App` static constructor.
 - [ ] Output DLL can be located and staged by packaging scripts.

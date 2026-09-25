@@ -74,7 +74,7 @@ Este repositório disponibiliza habilidades modulares especializadas para agente
 
 ### 2. Dependências e Binários do Revit
 - **Nunca Copiar DLLs do Revit**: Referências para `RevitAPI.dll`, `RevitAPIUI.dll` e `AdWindows.dll` devem ter sempre `<Private>false</Private>`.
-- **Assemblies de Dependência**: Pacotes NuGet adicionais (como `System.Security.Cryptography.ProtectedData.dll`) devem ser empacotados no diretório do add-in usando `<CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>`.
+- **Assemblies de Dependência**: Pacotes NuGet adicionais devem ser empacotados no diretório do add-in usando `<CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>`. O `System.Security.Cryptography.ProtectedData.dll` é payload **apenas no ano `net48`** (Revit 2023/2024), onde só o pacote NuGet o fornece; em `net8.0-windows` e `net10.0-windows` (Revit 2025+) ele já faz parte do runtime `Microsoft.WindowsDesktop.App` e **não** deve ser copiado para o diretório do add-in.
 - **KISS & Zero Inchaço**: Priorize bibliotecas da BCL do .NET 8 e namespaces padrão do Revit. Evite bibliotecas pesadas de terceiros (como Newtonsoft.Json — utilize `System.Text.Json`).
 
 ### 3. Integração com a Plataforma Node.aec
@@ -107,11 +107,14 @@ dotnet build NodeAec.Licensing.Sample\NodeAec.Licensing.Sample.sln -c Release
 powershell -ExecutionPolicy Bypass -File NodeAec.Licensing.Sample\scripts\release.ps1 -Version 1.0.0 -Install
 ```
 
+> [!WARNING]
+> **Os testes de DPAPI exigem um logon interativo.** Qualquer teste que chame `ProtectedData.Protect/Unprotect(..., DataProtectionScope.CurrentUser)` só funciona numa sessão de logon real (SessionId ≥ 1). Num contexto SSH/`services.exe` o processo roda na Session 0 sem Logon SID (`S-1-5-5-*`) e sem `AuthenticationId`, e o Windows devolve `win32 = 5 Acesso negado` — o código é *fail-closed* por design, então a falha aparece como `SaveMasterLease → false`. Em sessão SSH o resultado esperado é **43/63** em `NodeAec.Connector.Tests` (20 falhas de DPAPI) e **12/12** em `NodeAec.Licensing.Tests`; numa sessão interativa os 63 devem passar. Não "corrigir" isso enfraquecendo o armazenamento nem marcando testes como Skip.
+
 Critérios de Aceite para Modificações:
 - Compilação limpa: **0 Erros**.
 - Testes unitários: 100% passando.
 - Nenhum assembly do Revit (`RevitAPI*.dll`) dentro da pasta `release/` ou `stage/`.
-- A DLL `System.Security.Cryptography.ProtectedData.dll` deve estar presente no payload final do add-in.
+- A DLL `System.Security.Cryptography.ProtectedData.dll` deve estar presente no payload final do add-in **somente quando o alvo é `net48`** (Revit 2023/2024). Em `net8.0-windows`/`net10.0-windows` ela é fornecida pelo `Microsoft.WindowsDesktop.App` e não deve aparecer em `release/` ou `stage/`.
 
 ---
 
