@@ -99,18 +99,16 @@ public class ConnectorApiClient : IDisposable
                 if (DateTimeOffset.TryParse(expStr, out var parsedExp)) expiresAt = parsedExp;
             }
 
-            var entitlements = new List<EntitlementItem>();
-            if (root.TryGetProperty("entitlements", out var entArray) && entArray.ValueKind == JsonValueKind.Array)
-            {
-                foreach (var item in entArray.EnumerateArray())
-                {
-                    var ent = JsonSerializer.Deserialize<EntitlementItem>(item.GetRawText());
-                    if (ent != null) entitlements.Add(ent);
-                }
-            }
+            var entitlements = ParseEntitlements(root) ?? new List<EntitlementItem>();
 
-            // Salva o token mestre em disco protegido com DPAPI
-            LeaseStorage.SaveMasterLease(leaseToken);
+            // Atualiza o cache de chaves públicas (JWKS) para verificação offline do lease
+            await SigningKeyStore.RefreshAsync(_baseUrl, _httpClient, cancellationToken).ConfigureAwait(false);
+
+            // Salva o token mestre em disco protegido com DPAPI (falha = modo fechado, sem texto puro)
+            if (!LeaseStorage.SaveMasterLease(leaseToken))
+            {
+                return SyncResult.Failed("Suas licenças foram recebidas, mas não puderam ser salvas neste computador. Verifique as permissões do usuário e tente novamente.");
+            }
 
             return SyncResult.Succeeded(leaseToken, entitlements, expiresAt, granted, total);
         }
@@ -165,19 +163,22 @@ public class ConnectorApiClient : IDisposable
                 return SyncResult.Failed("Resposta da API não continha o token de concessão.");
             }
 
-            // Persiste o lease emitido
-            LeaseStorage.SaveMasterLease(leaseToken);
+            // ATENÇÃO: o lease emitido por /license/activate é de produto único (sem claim
+            // `entitlements`) e NUNCA substitui o Master Entitlements Lease local. Gravá-lo em
+            // `entitlements.lease` apagaria as demais concessões e o gate passaria a negar
+            // tudo. A ativação só libera de fato quando a conta ressincroniza o lease mestre
+            // (fluxo tratado pela janela após este retorno).
+            await SigningKeyStore.RefreshAsync(_baseUrl, _httpClient, cancellationToken).ConfigureAwait(false);
 
             var payload = LeaseStorage.ParseJwtPayload(leaseToken);
-            var entitlements = payload?.Entitlements ?? new List<EntitlementItem>();
 
             return SyncResult.Succeeded(
                 leaseToken,
-                entitlements,
+                new List<EntitlementItem>(),
                 payload?.ExpiresAt,
-                entitlements.Count,
-                entitlements.Count,
-                "Licença ativada com sucesso!");
+                0,
+                0,
+                "Chave ativada com sucesso!");
         }
         catch (Exception ex)
         {
@@ -220,21 +221,38 @@ public class ConnectorApiClient : IDisposable
             using var doc = JsonDocument.Parse(responseBody);
             var root = doc.RootElement;
 
+            // A API responde `valid: false` quando a concessão não vale mais nesta máquina.
+            if (root.TryGetProperty("valid", out var validElem) &&
+                validElem.ValueKind == JsonValueKind.False)
+            {
+                return SyncResult.Failed("A plataforma informou que esta concessão não está mais válida neste computador. Entre com sua conta para renovar.");
+            }
+
             string? renewedToken = root.TryGetProperty("leaseToken", out var lt) ? lt.GetString() : null;
             if (!string.IsNullOrWhiteSpace(renewedToken))
             {
-                LeaseStorage.SaveMasterLease(renewedToken);
+                await SigningKeyStore.RefreshAsync(_baseUrl, _httpClient, cancellationToken).ConfigureAwait(false);
+
+                if (!LeaseStorage.SaveMasterLease(renewedToken))
+                {
+                    return SyncResult.Failed("A licença foi renovada, mas não puderam ser salvas neste computador. Verifique as permissões do usuário.");
+                }
+
                 token = renewedToken;
             }
 
-            var payload = LeaseStorage.ParseJwtPayload(token);
-            var entitlements = payload?.Entitlements ?? new List<EntitlementItem>();
+            // A resposta pode trazer status granulares mais frescos que o token local
+            // (ex.: `seat_released`); quando presente, ela tem prioridade sobre o payload.
+            var entitlements = ParseEntitlements(root) ?? LeaseStorage.ParseJwtPayload(token)?.Entitlements
+                ?? new List<EntitlementItem>();
+            int activeCount = entitlements.FindAll(e => e.IsActive()).Count;
+            var expiresAt = LeaseStorage.ParseJwtPayload(token)?.ExpiresAt;
 
             return SyncResult.Succeeded(
                 token,
                 entitlements,
-                payload?.ExpiresAt,
-                entitlements.Count,
+                expiresAt,
+                activeCount,
                 entitlements.Count,
                 "Validação concluída com sucesso.");
         }
@@ -265,37 +283,95 @@ public class ConnectorApiClient : IDisposable
         }
     }
 
+    /// <summary>
+    /// Converte o array <c>entitlements</c> da resposta, quando presente, ou retorna
+    /// <c>null</c> para que o chamador use o payload do lease local como alternativa.
+    /// </summary>
+    private static List<EntitlementItem>? ParseEntitlements(JsonElement root)
+    {
+        if (!root.TryGetProperty("entitlements", out var entArray) ||
+            entArray.ValueKind != JsonValueKind.Array)
+        {
+            return null;
+        }
+
+        var entitlements = new List<EntitlementItem>();
+        foreach (var item in entArray.EnumerateArray())
+        {
+            var ent = JsonSerializer.Deserialize<EntitlementItem>(item.GetRawText());
+            if (ent != null) entitlements.Add(ent);
+        }
+
+        return entitlements;
+    }
+
+    /// <summary>
+    /// Mapeia a resposta de erro da API — formato real
+    /// <c>{ error: true, status, type, code, message }</c> — para uma mensagem amigável
+    /// em linguagem de usuário. Prioridade: código estável mapeado → mensagem do servidor
+    /// → código cru → status HTTP. Nunca lança: corpo não-JSON cai no fallback por status.
+    /// </summary>
+    /// <param name="responseBody">Corpo JSON (ou texto) da resposta de erro.</param>
+    /// <param name="statusCode">Status HTTP da resposta.</param>
     private static string ParseApiErrorMessage(string responseBody, int statusCode)
     {
+        string? code = null;
+        string? serverMessage = null;
+
         try
         {
             using var doc = JsonDocument.Parse(responseBody);
-            if (doc.RootElement.TryGetProperty("code", out var codeElem))
+            if (doc.RootElement.ValueKind == JsonValueKind.Object)
             {
-                string code = codeElem.GetString() ?? string.Empty;
-                return code switch
+                if (doc.RootElement.TryGetProperty("code", out var codeElem) &&
+                    codeElem.ValueKind == JsonValueKind.String)
                 {
-                    "ACTIVATION_LIMIT_REACHED" => "Limite de assentos simultâneos atingido para esta licença. Desative o assento em outro computador ou pelo portal web.",
-                    "INVALID_LICENSE_KEY_FORMAT" => "Formato de chave inválido. A chave deve seguir o formato NAEC-XXXX-XXXX-XXXX-XXXX.",
-                    "LICENSE_NOT_FOUND" => "Chave de licença não encontrada. Verifique a digitação.",
-                    "LICENSE_EXPIRED" => "Esta licença ou período de avaliação expirou.",
-                    "LICENSE_SUSPENDED" => "Esta licença foi suspensa administrativamente.",
-                    "LEASE_TOKEN_EXPIRED" => "O prazo de tolerância offline (30 dias) expirou. Conecte-se à internet para sincronizar.",
-                    "MACHINE_MISMATCH" => "O identificador da máquina não corresponde ao registro da concessão.",
-                    _ => doc.RootElement.TryGetProperty("error", out var errElem) ? errElem.GetString() ?? $"Erro {statusCode}" : $"Erro {statusCode}: {code}"
-                };
-            }
+                    code = codeElem.GetString();
+                }
 
-            if (doc.RootElement.TryGetProperty("error", out var directErr))
-            {
-                return directErr.GetString() ?? $"Erro {statusCode}";
+                // `error` é booleano no contrato; só o `message` traz texto legível.
+                if (doc.RootElement.TryGetProperty("message", out var msgElem) &&
+                    msgElem.ValueKind == JsonValueKind.String)
+                {
+                    serverMessage = msgElem.GetString();
+                }
             }
         }
-        catch
+        catch (JsonException)
         {
-            // Silencioso se não for JSON válido
+            // Corpo não é JSON (proxy/gateway): segue pelo status HTTP.
         }
 
+        string? mapped = code switch
+        {
+            "BAD_REQUEST" => "Os dados enviados foram recusados. Revise e tente novamente.",
+            "UNAUTHORIZED" => "Sua sessão expirou. Entre com sua conta novamente.",
+            "FORBIDDEN" => "Você não tem permissão para esta ação.",
+            "NOT_FOUND" => "Serviço não encontrado. Verifique a conexão com a plataforma Node.aec.",
+            "RATE_LIMITED" or "LICENSE_RATE_LIMITED" =>
+                "Muitas tentativas em pouco tempo. Aguarde alguns minutos e tente novamente.",
+            "ACCOUNT_INACTIVE" => "Sua conta não está ativa. Fale com o suporte do Node.aec.",
+            "LICENSE_KEY_REQUIRED" => "Informe a chave de licença (formato NAEC-XXXX-XXXX-XXXX-XXXX).",
+            "MACHINE_ID_REQUIRED" => "A identificação da máquina não foi enviada. Reinicie o Connector e tente novamente.",
+            "INVALID_LICENSE_KEY_FORMAT" => "Formato de chave inválido. A chave deve seguir o formato NAEC-XXXX-XXXX-XXXX-XXXX.",
+            "LICENSE_NOT_FOUND" => "Chave de licença não encontrada. Verifique a digitação.",
+            "LICENSE_EXPIRED" => "Esta licença ou período de avaliação expirou.",
+            "LICENSE_SUSPENDED" => "Esta licença foi suspensa administrativamente. Fale com o suporte do Node.aec.",
+            "LICENSE_REVOKED" => "Esta licença foi cancelada ou reembolsada. Libere outra chave.",
+            "LICENSE_INACTIVE" => "Esta licença não está ativa. Fale com o suporte do Node.aec.",
+            "TRIAL_ALREADY_USED" => "O período de avaliação já foi usado neste computador. Contrate uma assinatura comercial.",
+            "ACTIVATION_LIMIT_REACHED" => "Limite de assentos simultâneos atingido para esta licença. Desative o assento em outro computador ou pelo portal web.",
+            "ACTIVATION_NOT_FOUND" => "Este computador ainda não está registrado nesta licença. Ative a chave primeiro.",
+            "LEASE_TOKEN_REQUIRED" => "Nenhuma licença local encontrada. Clique em atualizar para baixar suas licenças.",
+            "INVALID_LEASE_TOKEN" => "A licença local é inválida ou foi adulterada. Atualize suas licenças na internet.",
+            "LEASE_TOKEN_EXPIRED" => "O prazo de tolerância offline expirou. Conecte-se à internet para sincronizar.",
+            "MACHINE_MISMATCH" => "A licença local pertence a outro computador. Entre com sua conta para ativar este equipamento.",
+            _ => null,
+        };
+
+        if (!string.IsNullOrWhiteSpace(mapped)) return mapped!;
+        if (!string.IsNullOrWhiteSpace(serverMessage)) return serverMessage!;
+        if (!string.IsNullOrWhiteSpace(code)) return $"O servidor recusou a solicitação ({code}).";
         return $"Servidor retornou código {statusCode}.";
     }
 
