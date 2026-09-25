@@ -74,21 +74,77 @@ public class DesktopAuthService
     }
 
     /// <summary>
+    /// Compara dois textos em tempo constante. A comparação ingênua de <c>state</c>
+    /// vaza o prefixo correto por timing — não é praticamente explorável aqui, mas o
+    /// comparador é barato. <c>CryptographicOperations.FixedTimeEquals</c> não existe no
+    /// net48 (Revit 2023/2024), então a comparação é manual e sem saída antecipada.
+    /// </summary>
+    /// <param name="left">Primeiro texto (pode ser nulo).</param>
+    /// <param name="right">Segundo texto (pode ser nulo).</param>
+    /// <returns><c>true</c> quando os textos são idênticos byte a byte (UTF-8).</returns>
+    internal static bool FixedTimeEquals(string? left, string? right)
+    {
+        if (left is null || right is null) return left is null && right is null;
+
+        byte[] a = Encoding.UTF8.GetBytes(left);
+        byte[] b = Encoding.UTF8.GetBytes(right);
+        int diff = a.Length ^ b.Length;
+        int min = Math.Min(a.Length, b.Length);
+        for (int i = 0; i < min; i++)
+        {
+            diff |= a[i] ^ b[i];
+        }
+        return diff == 0;
+    }
+
+    /// <summary>
+    /// Sonda uma porta de loopback, faz o bind do <see cref="HttpListener"/> e o inicia,
+    /// repetindo com outra porta em caso de corrida (L2): a porta é liberada entre a
+    /// sondagem e o bind, então outro processo pode ocupá-la nesse intervalo. Quando todas
+    /// as tentativas falham, lança <see cref="InvalidOperationException"/> com mensagem
+    /// amigável — nunca uma exceção crua de rede.
+    /// </summary>
+    /// <param name="port">Porta efetivamente vinculada (para montar a URL de redirect).</param>
+    /// <returns>Listener iniciado e pronto para <c>GetContextAsync</c>.</returns>
+    private static HttpListener StartLoopbackListener(out int port)
+    {
+        const int maxAttempts = 3;
+        Exception? lastFailure = null;
+
+        for (int attempt = 1; attempt <= maxAttempts; attempt++)
+        {
+            port = GetAvailableLoopbackPort();
+            var listener = new HttpListener();
+            // Prefixo na raiz para aceitar exatamente o caminho que o portal emite (`/callback`),
+            // que não termina em barra — prefixo com barra final não casaria com ele.
+            listener.Prefixes.Add($"http://127.0.0.1:{port}/");
+
+            try
+            {
+                listener.Start();
+                return listener;
+            }
+            catch (Exception ex) when (ex is HttpListenerException || ex is InvalidOperationException)
+            {
+                // Bind perdido na corrida (ou porta recusada) → fecha e tenta outra porta.
+                lastFailure = ex;
+                try { listener.Close(); } catch { }
+            }
+        }
+
+        throw new InvalidOperationException(
+            "Não foi possível abrir a porta local de login (a porta foi ocupada ou o acesso à rede local está restrito). Feche outras janelas de login e tente novamente.",
+            lastFailure);
+    }
+
+    /// <summary>
     /// Inicia o loopback listener local e abre o navegador padrão para o usuário entrar com sua conta.
     /// Aguarda a resposta por até 120 segundos.
     /// </summary>
     public async Task<string> LoginViaBrowserAsync(CancellationToken cancellationToken = default)
     {
-        int port = GetAvailableLoopbackPort();
-        // Prefixo na raiz para aceitar exatamente o caminho que o portal emite (`/callback`),
-        // que não termina em barra — prefixo com barra final não casaria com ele.
-        string redirectPrefix = $"http://127.0.0.1:{port}/";
+        using var listener = StartLoopbackListener(out int port);
         string state = GenerateSecureState();
-
-        using var listener = new HttpListener();
-        listener.Prefixes.Add(redirectPrefix);
-        listener.Start();
-
         string authUrl = BuildAuthUrl(port, state);
 
         try
@@ -132,14 +188,18 @@ public class DesktopAuthService
                     string? receivedState = request.QueryString["state"];
                     string? userToken = request.QueryString["token"];
 
-                    if (string.IsNullOrEmpty(receivedState) || receivedState != state || string.IsNullOrEmpty(userToken))
+                    if (string.IsNullOrEmpty(receivedState) || !FixedTimeEquals(receivedState, state) || string.IsNullOrEmpty(userToken))
                     {
                         byte[] errorBytes = Encoding.UTF8.GetBytes("Falha na autenticação: Estado inválido ou token ausente.");
                         response.StatusCode = 400;
                         response.ContentType = "text/plain; charset=utf-8";
                         await response.OutputStream.WriteAsync(errorBytes, 0, errorBytes.Length, cancellationToken).ConfigureAwait(false);
                         response.Close();
-                        throw new InvalidOperationException("A confirmação do login veio com dados inesperados. Tente entrar novamente.");
+                        // L1: responde 400 e CONTINUA aguardando. A porta do loopback é
+                        // descobrível via `netstat` — qualquer processo local pode atirar um
+                        // `/callback` com `state` errado, e isso não pode encerrar a espera
+                        // legítima do usuário dentro dos 120 s.
+                        continue;
                     }
 
                     string successHtml = @"<!DOCTYPE html>

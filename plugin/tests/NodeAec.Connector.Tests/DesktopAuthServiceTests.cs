@@ -12,7 +12,8 @@ public class DesktopAuthServiceTests
         string state = DesktopAuthService.GenerateSecureState();
 
         Assert.NotNull(state);
-        Assert.True(state.Length >= 40); // 32 bytes in base64 without padding ~ 43 chars
+        // 32 bytes em base64url sem padding são sempre exatamente 43 caracteres.
+        Assert.Equal(43, state.Length);
         Assert.DoesNotContain("+", state);
         Assert.DoesNotContain("/", state);
         Assert.DoesNotContain("=", state);
@@ -25,6 +26,19 @@ public class DesktopAuthServiceTests
         string state2 = DesktopAuthService.GenerateSecureState();
 
         Assert.NotEqual(state1, state2);
+    }
+
+    [Theory]
+    [InlineData("same-token", "same-token", true)]   // state idêntico → aceito
+    [InlineData("same-token", "other-token", false)] // conteúdo diferente → rejeitado
+    [InlineData("abc", "abcd", false)]               // prefixo comum não engana (sem saída antecipada)
+    [InlineData("", "", true)]
+    [InlineData(null, null, true)]
+    [InlineData(null, "abc", false)]
+    [InlineData("abc", null, false)]
+    public void FixedTimeEquals_ComparesExactlyWithoutEarlyExit(string? left, string? right, bool expected)
+    {
+        Assert.Equal(expected, DesktopAuthService.FixedTimeEquals(left, right));
     }
 
     [Fact]
