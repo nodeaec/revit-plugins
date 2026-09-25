@@ -55,14 +55,41 @@ public class App : IExternalApplication
 
     public Result OnStartup(UIControlledApplication application)
     {
-        // 1. Cria a aba canônica "Node.aec" caso não exista
+        // M3: guarda de topo do add-in. Uma exceção escapando do OnStartup faz o Revit
+        // reportar "falha ao carregar o add-in" com uma ribbon meio montada e sem causa
+        // registrada; aqui a falha vira Result.Failed limpo, com o tipo da exceção (nunca
+        // o conteúdo da mensagem — pode conter caminhos/PII) no log local.
+        try
+        {
+            return Initialize(application);
+        }
+        catch (Exception ex)
+        {
+            Diagnostics.ConnectorLog.Write("ERROR", $"Falha ao montar a ribbon Node.aec: {ex.GetType().Name}.");
+            return Result.Failed;
+        }
+    }
+
+    /// <summary>
+    /// Corpo do <see cref="OnStartup"/>: aba canônica, deduplicação, painel "Conector",
+    /// botões, hooks AdWindows e heartbeat. Qualquer exceção não tratada propaga para o
+    /// guarda de topo de <c>OnStartup</c>, que a converte em <c>Result.Failed</c>.
+    /// </summary>
+    private static Result Initialize(UIControlledApplication application)
+    {
+        // 1. Cria a aba canônica "Node.aec" caso não exista. Só a exceção de "nome já em
+        //    uso"/nome inválido é tratada como estado esperado (reload do add-in); qualquer
+        //    outra falha propaga para o guarda de topo. Um catch sem filtro — como antes —
+        //    mascarava qualquer erro real e a causa reaparecia depois, sem rastro, como
+        //    ArgumentException do CreateRibbonPanel.
         try
         {
             application.CreateRibbonTab(TabName);
         }
-        catch
+        catch (Exception ex) when (
+            ex is Autodesk.Revit.Exceptions.ArgumentException || ex is ArgumentException)
         {
-            // Aba já existente
+            Diagnostics.ConnectorLog.Write("INFO", $"Aba '{TabName}' já existia ou nome rejeitado: {ex.GetType().Name}.");
         }
 
         // 2. Limpa elementos estranhos e remove abas duplicadas
