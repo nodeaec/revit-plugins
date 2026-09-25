@@ -128,4 +128,22 @@ public class LeaseStorageTests : IDisposable
         Assert.Equal("revit-automator", payload.Entitlements[0].Slug);
         Assert.False(payload.IsExpired);
     }
+
+    [Fact]
+    public void SaveMasterLease_ReturnsTrueAndPersistsAtomically()
+    {
+        bool saved = LeaseStorage.SaveMasterLease("atomic-write-check");
+
+        Assert.True(saved);
+        Assert.Equal("atomic-write-check", LeaseStorage.LoadMasterLease());
+        Assert.False(File.Exists(LeaseStorage.GetLeaseFilePath() + ".tmp"));
+    }
+
+    [Fact]
+    public void SaveMasterLease_WithBlankToken_ReturnsFalse()
+    {
+        Assert.False(LeaseStorage.SaveMasterLease(""));
+        Assert.False(LeaseStorage.SaveMasterLease("   "));
+        Assert.Null(LeaseStorage.LoadMasterLease());
+    }
 }

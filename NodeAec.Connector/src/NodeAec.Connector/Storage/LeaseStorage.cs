@@ -46,38 +46,40 @@ public static class LeaseStorage
 
     /// <summary>
     /// Salva o token JWT do lease mestre criptografado com DPAPI.
+    /// Em Windows, a falha do DPAPI <b>não</b> degrada para texto puro: nada é gravado e o
+    /// método retorna <c>false</c> (modo fechado). Em sistemas não-Windows (apenas
+    /// desenvolvimento/testes — o Revit é Windows-only) grava texto puro.
+    /// A gravação é atômica (arquivo temporário + troca) para nunca deixar lease pela metade.
     /// </summary>
-    public static void SaveMasterLease(string jwtToken)
+    /// <param name="jwtToken">Token JWT do lease mestre.</param>
+    /// <returns><c>true</c> quando o lease foi persistido com segurança.</returns>
+    public static bool SaveMasterLease(string jwtToken)
     {
-        if (string.IsNullOrWhiteSpace(jwtToken)) return;
+        if (string.IsNullOrWhiteSpace(jwtToken)) return false;
 
-        var path = GetLeaseFilePath();
-        var dir = Path.GetDirectoryName(path);
-        if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir)) Directory.CreateDirectory(dir);
-        var rawBytes = Encoding.UTF8.GetBytes(jwtToken);
-
-        byte[] bytesToWrite;
-        if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+        byte[] rawBytes = Encoding.UTF8.GetBytes(jwtToken);
+        if (!TryProtect(rawBytes, out byte[] bytesToWrite, out string? failure))
         {
-            try
-            {
-                bytesToWrite = ProtectedData.Protect(rawBytes, null, DataProtectionScope.CurrentUser);
-            }
-            catch
-            {
-                bytesToWrite = rawBytes;
-            }
-        }
-        else
-        {
-            bytesToWrite = rawBytes;
+            Diagnostics.ConnectorLog.Write("ERROR", $"Não foi possível proteger o lease local: {failure}.");
+            return false;
         }
 
-        File.WriteAllBytes(path, bytesToWrite);
+        try
+        {
+            WriteAllBytesAtomic(GetLeaseFilePath(), bytesToWrite);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            Diagnostics.ConnectorLog.Write("ERROR", $"Falha ao gravar o lease local: {ex.GetType().Name}.");
+            return false;
+        }
     }
 
     /// <summary>
     /// Lê e descriptografa o token JWT do lease mestre local.
+    /// Em Windows, um arquivo que não descriptografa é tratado como corrompido/alheio e
+    /// descartado (retorna <c>null</c>) em vez de ser aceito como texto puro.
     /// </summary>
     public static string? LoadMasterLease()
     {
@@ -89,21 +91,13 @@ public static class LeaseStorage
             var bytes = File.ReadAllBytes(path);
             if (bytes.Length == 0) return null;
 
-            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+            if (!TryUnprotect(bytes, out byte[] plain, out string? failure))
             {
-                try
-                {
-                    var decrypted = ProtectedData.Unprotect(bytes, null, DataProtectionScope.CurrentUser);
-                    return Encoding.UTF8.GetString(decrypted);
-                }
-                catch
-                {
-                    // Se falhar o unprotect, pode ser token não criptografado em ambiente de teste
-                    return Encoding.UTF8.GetString(bytes);
-                }
+                Diagnostics.ConnectorLog.Write("WARN", $"Lease local ilegível descartado: {failure}.");
+                return null;
             }
 
-            return Encoding.UTF8.GetString(bytes);
+            return Encoding.UTF8.GetString(plain);
         }
         catch
         {
@@ -124,46 +118,48 @@ public static class LeaseStorage
     }
 
     /// <summary>
-    /// Salva dados de sessão de usuário (nome, email, token) criptografados.
+    /// Salva dados de sessão de usuário (nome, email, token) criptografados com DPAPI,
+    /// sem degradação para texto puro em Windows. Gravação atômica.
     /// </summary>
-    public static void SaveSession(string? userEmail, string? userToken, string? userName = null)
+    /// <param name="userEmail">Email da conta (exibição).</param>
+    /// <param name="userToken">Token JWT de sessão do usuário.</param>
+    /// <param name="userName">Nome exibido do usuário, quando disponível.</param>
+    /// <returns><c>true</c> quando a sessão foi persistida com segurança.</returns>
+    public static bool SaveSession(string? userEmail, string? userToken, string? userName = null)
     {
         var path = GetSessionFilePath();
-        var dir = Path.GetDirectoryName(path);
-        if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir)) Directory.CreateDirectory(dir);
         var json = JsonSerializer.Serialize(new
         {
             name = userName ?? string.Empty,
             email = userEmail ?? string.Empty,
             token = userToken ?? string.Empty
         });
-        var rawBytes = Encoding.UTF8.GetBytes(json);
+        byte[] rawBytes = Encoding.UTF8.GetBytes(json);
 
-        byte[] bytesToWrite;
-        if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+        if (!TryProtect(rawBytes, out byte[] bytesToWrite, out string? failure))
         {
-            try
-            {
-                bytesToWrite = ProtectedData.Protect(rawBytes, null, DataProtectionScope.CurrentUser);
-            }
-            catch
-            {
-                bytesToWrite = rawBytes;
-            }
-        }
-        else
-        {
-            bytesToWrite = rawBytes;
+            Diagnostics.ConnectorLog.Write("ERROR", $"Não foi possível proteger a sessão local: {failure}.");
+            return false;
         }
 
-        File.WriteAllBytes(path, bytesToWrite);
+        try
+        {
+            WriteAllBytesAtomic(path, bytesToWrite);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            Diagnostics.ConnectorLog.Write("ERROR", $"Falha ao gravar a sessão local: {ex.GetType().Name}.");
+            return false;
+        }
     }
 
     /// <summary>
-    /// Lê a sessão do usuário salva (nome, email, token).
-    /// Sessões antigas gravaram o id público no campo "email"; quando o token
-    /// de usuário salvo contém as claims reais, elas têm prioridade e corrige
-    /// o valor armazenado silenciosamente.
+    /// Lê a sessão do usuário salva (nome, email, token). Em Windows, conteúdo que não
+    /// descriptografa é descartado (retorna <c>null</c> — o usuário apenas entra novamente).
+    /// Sessões antigas gravaram o id público no campo "email"; quando o token de usuário
+    /// salvo contém as claims reais, elas têm prioridade e corrigem o valor armazenado
+    /// silenciosamente.
     /// </summary>
     public static (string? Name, string? Email, string? Token)? LoadSession()
     {
@@ -173,24 +169,15 @@ public static class LeaseStorage
         try
         {
             var bytes = File.ReadAllBytes(path);
-            string json;
-            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+            if (bytes.Length == 0) return null;
+
+            if (!TryUnprotect(bytes, out byte[] plain, out string? failure))
             {
-                try
-                {
-                    var decrypted = ProtectedData.Unprotect(bytes, null, DataProtectionScope.CurrentUser);
-                    json = Encoding.UTF8.GetString(decrypted);
-                }
-                catch
-                {
-                    json = Encoding.UTF8.GetString(bytes);
-                }
-            }
-            else
-            {
-                json = Encoding.UTF8.GetString(bytes);
+                Diagnostics.ConnectorLog.Write("WARN", $"Sessão local ilegível descartada: {failure}.");
+                return null;
             }
 
+            string json = Encoding.UTF8.GetString(plain);
             using var doc = JsonDocument.Parse(json);
             string? name = doc.RootElement.TryGetProperty("name", out var n) ? n.GetString() : null;
             string? email = doc.RootElement.TryGetProperty("email", out var e) ? e.GetString() : null;
@@ -224,7 +211,9 @@ public static class LeaseStorage
     }
 
     /// <summary>
-    /// Decodifica o payload de um token JWT sem verificar assinatura criptográfica.
+    /// Decodifica o payload de um token JWT <b>sem</b> verificar assinatura criptográfica.
+    /// Uso restrito a exibição (saudação, datas) — decisões de licença passam
+    /// obrigatoriamente por <c>Gate.NodeAecGate</c>, que verifica a assinatura Ed25519.
     /// </summary>
     public static MasterLeasePayload? ParseJwtPayload(string token)
     {
@@ -242,9 +231,10 @@ public static class LeaseStorage
     }
 
     /// <summary>
-    /// Decodifica as claims de identidade (id, email, name) do token de sessão
-    /// do usuário, sem verificar assinatura. Retorna null para tokens ausentes,
-    /// malformados ou que não carreguem essas claims (ex.: o lease mestre).
+    /// Decodifica as claims de identidade (id, email, name) do token de sessão do usuário,
+    /// sem verificar assinatura (material de exibição vindo do próprio loopback).
+    /// Retorna <c>null</c> para tokens ausentes, malformados ou que não carreguem essas
+    /// claims (ex.: o lease mestre, que só traz o id técnico em <c>sub</c>).
     /// </summary>
     public static UserSessionClaims? ParseUserSessionClaims(string? token)
     {
@@ -267,7 +257,7 @@ public static class LeaseStorage
 
     /// <summary>
     /// Retorna o payload (segmento base64url do meio) de um JWT como JSON,
-    /// ou null quando o token não é um JWT utilizável.
+    /// ou <c>null</c> quando o token não é um JWT utilizável.
     /// </summary>
     private static string? DecodeJwtPayloadJson(string? token)
     {
@@ -275,20 +265,109 @@ public static class LeaseStorage
         var parts = token.Split('.');
         if (parts.Length < 2) return null;
 
+        var base64 = parts[1].Replace('-', '+').Replace('_', '/');
+        switch (base64.Length % 4)
+        {
+            case 2: base64 += "=="; break;
+            case 3: base64 += "="; break;
+            case 1: return null;
+        }
+
         try
         {
-            var base64 = parts[1].Replace('-', '+').Replace('_', '/');
-            switch (base64.Length % 4)
-            {
-                case 2: base64 += "=="; break;
-                case 3: base64 += "="; break;
-            }
-
             return Encoding.UTF8.GetString(Convert.FromBase64String(base64));
         }
-        catch
+        catch (FormatException)
         {
             return null;
+        }
+    }
+
+    /// <summary>
+    /// Protege bytes com DPAPI (CurrentUser) em Windows. Fora de Windows apenas
+    /// repassa o texto puro (ambiente de desenvolvimento/teste; o Revit é Windows-only).
+    /// </summary>
+    /// <param name="plain">Bytes originais.</param>
+    /// <param name="protectedBytes">Bytes a gravar quando o retorno é <c>true</c>.</param>
+    /// <param name="reason">Motivo legível da falha quando o retorno é <c>false</c>.</param>
+    /// <returns><c>false</c> somente quando o DPAPI falhou em Windows (nunca grava puro lá).</returns>
+    private static bool TryProtect(byte[] plain, out byte[] protectedBytes, out string? reason)
+    {
+        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+        {
+            protectedBytes = plain;
+            reason = null;
+            return true;
+        }
+
+        try
+        {
+            protectedBytes = ProtectedData.Protect(plain, null, DataProtectionScope.CurrentUser);
+            reason = null;
+            return true;
+        }
+        catch (Exception ex)
+        {
+            protectedBytes = Array.Empty<byte>();
+            reason = $"DPAPI indisponível ({ex.GetType().Name})";
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// Desprotege bytes gravados. Em Windows, conteúdo que não descriptografa é rejeitado
+    /// (<c>false</c>) — nunca interpretado como texto puro. Fora de Windows, texto puro.
+    /// </summary>
+    /// <param name="stored">Bytes lidos do disco.</param>
+    /// <param name="plain">Bytes originais quando o retorno é <c>true</c>.</param>
+    /// <param name="reason">Motivo legível da falha quando o retorno é <c>false</c>.</param>
+    private static bool TryUnprotect(byte[] stored, out byte[] plain, out string? reason)
+    {
+        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+        {
+            plain = stored;
+            reason = null;
+            return true;
+        }
+
+        try
+        {
+            plain = ProtectedData.Unprotect(stored, null, DataProtectionScope.CurrentUser);
+            reason = null;
+            return true;
+        }
+        catch (Exception ex)
+        {
+            plain = Array.Empty<byte>();
+            reason = $"conteúdo não DPAPI ou de outro usuário ({ex.GetType().Name})";
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// Grava bytes de forma atômica: escreve em <c>{path}.tmp</c> no mesmo diretório e
+    /// promove o arquivo a destino (<c>File.Replace</c> quando já existe, que é um rename
+    /// atômico em Windows; <c>File.Move</c> na primeira gravação). Evita que uma queda de
+    /// energia/processo deixe um lease/sessão pela metade no disco. Usa apenas APIs
+    /// presentes tanto no .NET Framework 4.8 (Revit 2023/2024) quanto no .NET 8/10.
+    /// </summary>
+    /// <param name="path">Arquivo de destino.</param>
+    /// <param name="bytes">Conteúdo a gravar.</param>
+    public static void WriteAllBytesAtomic(string path, byte[] bytes)
+    {
+        var dir = Path.GetDirectoryName(path);
+        if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir)) Directory.CreateDirectory(dir);
+
+        string tmp = $"{path}.tmp";
+        File.WriteAllBytes(tmp, bytes);
+
+        if (File.Exists(path))
+        {
+            File.Replace(tmp, path, null);
+        }
+        else
+        {
+            File.Move(tmp, path);
         }
     }
 }
