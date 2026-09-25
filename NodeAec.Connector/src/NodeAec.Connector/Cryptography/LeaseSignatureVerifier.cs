@@ -36,6 +36,24 @@ public static class LeaseSignatureVerifier
     };
 
     /// <summary>
+    /// Desfecho granular da verificação de assinatura. Permite ao chamador distinguir
+    /// "há chave disponível e a assinatura não confere" (rejeição firme) de "não existe
+    /// nenhuma chave com que verificar" (indisponibilidade — o chamador propaga o estado
+    /// de "não verificado" em vez de acusar adulteração).
+    /// </summary>
+    public enum VerificationOutcome
+    {
+        /// <summary>A assinatura Ed25519 confere com uma chave candidata.</summary>
+        Verified,
+
+        /// <summary>Nenhuma chave candidata existe (sem JWKS em cache e sem âncora fixa).</summary>
+        NoKeysAvailable,
+
+        /// <summary>Token malformado, algoritmo não aceito ou assinatura não confirmada pelas chaves disponíveis.</summary>
+        Rejected,
+    }
+
+    /// <summary>
     /// Verifica a assinatura Ed25519 de um JWT de lease no formato <c>header.payload.signature</c>.
     /// </summary>
     /// <param name="jwt">Token JWT bruto.</param>
@@ -43,58 +61,93 @@ public static class LeaseSignatureVerifier
     /// <returns><c>true</c> somente quando o header é EdDSA e a assinatura confere com uma chave candidata.</returns>
     public static bool TryVerify(string? jwt, out string? reason)
     {
+        return Evaluate(jwt, out reason) == VerificationOutcome.Verified;
+    }
+
+    /// <summary>
+    /// Avalia a assinatura do lease distinguindo confirmação, indisponibilidade de chave e
+    /// rejeição. É a base da decisão de persistir (ou não) um lease recebido da API antes
+    /// de qualquer claim ser confiável.
+    /// </summary>
+    /// <param name="jwt">Token JWT bruto no formato <c>header.payload.signature</c>.</param>
+    /// <param name="reason">Motivo legível do desfecho (para log; nunca exibir internamente).</param>
+    /// <returns>Desfecho da verificação — ver <see cref="VerificationOutcome"/>.</returns>
+    public static VerificationOutcome Evaluate(string? jwt, out string? reason)
+    {
         reason = null;
 
         if (string.IsNullOrWhiteSpace(jwt))
         {
             reason = "token ausente";
-            return false;
+            return VerificationOutcome.Rejected;
         }
 
         string[] parts = jwt.Trim().Split('.');
         if (parts.Length != 3)
         {
             reason = "estrutura JWT inválida";
-            return false;
+            return VerificationOutcome.Rejected;
         }
 
         if (!TryReadHeader(parts[0], out string? algorithm, out string? kid, out reason))
         {
-            return false;
+            return VerificationOutcome.Rejected;
         }
 
         if (!string.Equals(algorithm, AcceptedAlgorithm, StringComparison.Ordinal))
         {
             reason = $"algoritmo não suportado ({algorithm})";
-            return false;
+            return VerificationOutcome.Rejected;
         }
 
         byte[]? signature = TryFromBase64Url(parts[2]);
         if (signature == null || signature.Length != SignatureSize)
         {
             reason = "assinatura em formato inválido";
-            return false;
+            return VerificationOutcome.Rejected;
+        }
+
+        // Disponibilidade de chave ANTES de julgar: sem nenhuma chave (cache vazio e sem
+        // âncora fixa) a ausência de confirmação é indisponibilidade, não adulteração.
+        // Com chave disponível, tudo que não seja confirmação é rejeição firme.
+        var cached = SigningKeyStore.LoadVerificationKeys();
+        var candidates = OrderCandidates(kid, cached);
+        if (candidates.Count == 0)
+        {
+            if (cached.Count == 0 && !HasPinnedKey())
+            {
+                reason = "chave pública de verificação indisponível (JWKS ausente)";
+                return VerificationOutcome.NoKeysAvailable;
+            }
+
+            reason = kid == null ? "token sem kid, sem chave correspondente"
+                                 : $"nenhuma chave disponível para o kid {kid}";
+            return VerificationOutcome.Rejected;
         }
 
         byte[] data = Encoding.ASCII.GetBytes($"{parts[0]}.{parts[1]}");
-        var candidates = OrderCandidates(kid, SigningKeyStore.LoadVerificationKeys());
-        if (candidates.Count == 0)
-        {
-            reason = "chave pública de verificação indisponível (JWKS ausente)";
-            return false;
-        }
-
         foreach (var candidate in candidates)
         {
             if (VerifySignature(data, signature, candidate.RawKey))
             {
-                return true;
+                reason = null;
+                return VerificationOutcome.Verified;
             }
         }
 
         reason = kid == null ? "assinatura não corresponde a nenhuma chave conhecida"
                              : $"assinatura não corresponde à chave {kid}";
-        return false;
+        return VerificationOutcome.Rejected;
+    }
+
+    /// <summary>
+    /// Indica se existe âncora SPKI fixa utilizável (<c>NODEAEC_LICENSE_PUBLIC_KEY_SPKI</c>),
+    /// usada para classificar a ausência de candidatos como indisponibilidade de chave.
+    /// </summary>
+    private static bool HasPinnedKey()
+    {
+        string? pinnedSpki = ConnectorConfig.LicensePublicKeySpkiBase64;
+        return !string.IsNullOrWhiteSpace(pinnedSpki) && TryDecodeSpkiBase64(pinnedSpki, out _, out _);
     }
 
     /// <summary>

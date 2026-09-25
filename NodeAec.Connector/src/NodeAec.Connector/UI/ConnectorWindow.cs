@@ -415,7 +415,12 @@ public class ConnectorWindow : Window
                 }
                 else
                 {
-                    SetFeedback($"Tudo pronto! {syncResult.GrantedCount} plugin(s) liberado(s) neste computador.", UiTheme.Primary);
+                    // M1: exibe o aviso de degradação das chaves quando houver, em vez de
+                    // reportar sucesso puro para um lease que o gate rejeitaria depois.
+                    string? keysWarning = syncResult.VerificationWarning;
+                    SetFeedback(
+                        keysWarning ?? $"Tudo pronto! {syncResult.GrantedCount} plugin(s) liberado(s) neste computador.",
+                        keysWarning == null ? UiTheme.Primary : UiTheme.Accent);
                 }
             }
             else
@@ -456,7 +461,10 @@ public class ConnectorWindow : Window
 
             if (result.Success)
             {
-                SetFeedback("Licenças atualizadas com sucesso.", UiTheme.Primary);
+                string? keysWarning = result.VerificationWarning;
+                SetFeedback(
+                    keysWarning ?? "Licenças atualizadas com sucesso.",
+                    keysWarning == null ? UiTheme.Primary : UiTheme.Accent);
             }
             else
             {
@@ -504,11 +512,12 @@ public class ConnectorWindow : Window
                     SetFeedback("Chave ativada! Atualizando suas licenças...", UiTheme.Primary);
                     var sync = await client.SyncMasterEntitlementsAsync(session.Value.Token).ConfigureAwait(true);
 
+                    string? keysWarning = sync.VerificationWarning;
                     SetFeedback(
                         sync.Success
-                            ? $"Chave ativada! {sync.GrantedCount} plugin(s) liberado(s) neste computador."
+                            ? keysWarning ?? $"Chave ativada! {sync.GrantedCount} plugin(s) liberado(s) neste computador."
                             : $"Chave ativada, mas não foi possível atualizar as licenças agora: {sync.Message}",
-                        sync.Success ? UiTheme.Primary : UiTheme.Accent);
+                        sync.Success && keysWarning == null ? UiTheme.Primary : UiTheme.Accent);
                 }
                 else
                 {

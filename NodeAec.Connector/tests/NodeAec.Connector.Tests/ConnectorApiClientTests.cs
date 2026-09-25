@@ -3,12 +3,14 @@ using System.Collections.Generic;
 using System.IO;
 using System.Net;
 using System.Net.Http;
+using System.Text;
 using System.Text.Json;
 using System.Threading.Tasks;
 using NodeAec.Connector.Client;
 using NodeAec.Connector.Hardware;
 using NodeAec.Connector.Models;
 using NodeAec.Connector.Storage;
+using Org.BouncyCastle.Crypto.Parameters;
 using Xunit;
 
 namespace NodeAec.Connector.Tests;
@@ -47,7 +49,17 @@ public class ConnectorApiClientTests : IDisposable
     [Fact]
     public async Task SyncMasterEntitlementsAsync_OnSuccess_SavesLeaseAndCachesJwks()
     {
-        string mockLease = "hdr.payload.sig";
+        // Lease realmente assinado (EdDSA + kid) com as claims que a plataforma emite:
+        // a partir de M1 ele precisa passar na verificação de assinatura/scope/mid antes
+        // de ser gravado.
+        string mockLease = TestHelpers.CreateMasterLeaseJwt(
+            "usr_1",
+            HardwareId.GetMachineId(),
+            DateTimeOffset.UtcNow.AddDays(30),
+            new List<EntitlementItem>
+            {
+                new EntitlementItem { Slug = "revit-automator", Status = "active" }
+            });
         var mockResponse = new
         {
             success = true,
@@ -94,6 +106,10 @@ public class ConnectorApiClientTests : IDisposable
         var result = await client.SyncMasterEntitlementsAsync("valid-user-jwt");
 
         Assert.True(result.Success);
+        // M1: a assinatura foi conferida com o JWKS servido na mesma operação.
+        Assert.True(result.KeysVerified);
+        Assert.True(result.JwksRefreshed);
+        Assert.Null(result.VerificationWarning);
         Assert.Equal(1, result.GrantedCount);
         Assert.Single(result.Entitlements);
         Assert.Equal("revit-automator", result.Entitlements[0].Slug);
@@ -129,6 +145,132 @@ public class ConnectorApiClientTests : IDisposable
 
         Assert.False(result.Success);
         Assert.Contains("Limite de assentos simultâneos atingido", result.Message);
+    }
+
+    // ---- M1: verificação de assinatura + scope + mid ANTES de SaveMasterLease ----
+
+    [Fact]
+    public async Task SyncMasterEntitlementsAsync_TamperedLease_RejectedBeforeSaving()
+    {
+        // O JWKS servido traz a chave de teste; o lease vem assinado por chave forjada.
+        string forgedLease = CreateForgedMasterLease(HardwareId.GetMachineId());
+        using var httpClient = new HttpClient(HandlerServing(new { success = true, leaseToken = forgedLease }));
+        using var client = new ConnectorApiClient("https://api.test", httpClient);
+
+        var result = await client.SyncMasterEntitlementsAsync("valid-user-jwt");
+
+        // A recusa acontece ANTES de gravar: a mensagem é de verificação (não de falha de
+        // disco) e nenhum lease toca o disco — o lease anterior, se houver, permaneceria.
+        Assert.False(result.Success);
+        Assert.Contains("verificação de segurança", result.Message);
+        Assert.Null(LeaseStorage.LoadMasterLease());
+    }
+
+    [Fact]
+    public async Task SyncMasterEntitlementsAsync_WrongMachineId_RejectedBeforeSaving()
+    {
+        // Assinatura e scope válidos, mas emitido para outra máquina: mid divergente.
+        string leaseForAnotherMachine = TestHelpers.CreateMasterLeaseJwt(
+            "usr_1",
+            new string('x', 64),
+            DateTimeOffset.UtcNow.AddDays(30),
+            new List<EntitlementItem> { new EntitlementItem { Slug = "revit-automator", Status = "active" } });
+
+        using var httpClient = new HttpClient(HandlerServing(new { success = true, leaseToken = leaseForAnotherMachine }));
+        using var client = new ConnectorApiClient("https://api.test", httpClient);
+
+        var result = await client.SyncMasterEntitlementsAsync("valid-user-jwt");
+
+        Assert.False(result.Success);
+        Assert.Contains("verificação de segurança", result.Message);
+        Assert.Null(LeaseStorage.LoadMasterLease());
+    }
+
+    [Fact]
+    public async Task SyncMasterEntitlementsAsync_NonMasterScope_RejectedBeforeSaving()
+    {
+        // Assinatura e mid válidos, mas scope de produto — não é um master lease.
+        string pluginScopedLease = TestHelpers.CreateMasterLeaseJwt(
+            "usr_1",
+            HardwareId.GetMachineId(),
+            DateTimeOffset.UtcNow.AddDays(30),
+            new List<EntitlementItem> { new EntitlementItem { Slug = "revit-automator", Status = "active" } },
+            scope: "plugin-license");
+
+        using var httpClient = new HttpClient(HandlerServing(new { success = true, leaseToken = pluginScopedLease }));
+        using var client = new ConnectorApiClient("https://api.test", httpClient);
+
+        var result = await client.SyncMasterEntitlementsAsync("valid-user-jwt");
+
+        Assert.False(result.Success);
+        Assert.Contains("verificação de segurança", result.Message);
+        Assert.Null(LeaseStorage.LoadMasterLease());
+    }
+
+    [Fact]
+    public async Task SyncMasterEntitlementsAsync_JwksUnavailable_SavesButFlagsKeysUnverified()
+    {
+        string signedLease = TestHelpers.CreateMasterLeaseJwt(
+            "usr_1",
+            HardwareId.GetMachineId(),
+            DateTimeOffset.UtcNow.AddDays(30),
+            new List<EntitlementItem> { new EntitlementItem { Slug = "revit-automator", Status = "active" } });
+
+        using var httpClient = new HttpClient(HandlerServing(new { success = true, leaseToken = signedLease }, jwksAvailable: false));
+        using var client = new ConnectorApiClient("https://api.test", httpClient);
+
+        var result = await client.SyncMasterEntitlementsAsync("valid-user-jwt");
+
+        // Sem nenhuma chave disponível: o lease aprovado pelo servidor é salvo, mas o
+        // resultado propaga "não verificado" para a UI — em vez de um sucesso enganoso
+        // cuja falha só apareceria depois, de forma opaca, no gate.
+        Assert.True(result.Success);
+        Assert.False(result.KeysVerified);
+        Assert.False(result.JwksRefreshed);
+        Assert.NotNull(result.VerificationWarning);
+        Assert.Contains("chaves de verificação", result.VerificationWarning!);
+        Assert.Equal(signedLease, LeaseStorage.LoadMasterLease());
+    }
+
+    [Fact]
+    public async Task SyncMasterEntitlementsAsync_JwksRefreshFails_VerifiesWithCachedKeys()
+    {
+        // Chave em cache de uma execução anterior; o refresh desta operação falha.
+        TestHelpers.InstallTestSigningKey();
+        string signedLease = TestHelpers.CreateMasterLeaseJwt(
+            "usr_1",
+            HardwareId.GetMachineId(),
+            DateTimeOffset.UtcNow.AddDays(30),
+            new List<EntitlementItem> { new EntitlementItem { Slug = "revit-automator", Status = "active" } });
+
+        using var httpClient = new HttpClient(HandlerServing(new { success = true, leaseToken = signedLease }, jwksAvailable: false));
+        using var client = new ConnectorApiClient("https://api.test", httpClient);
+
+        var result = await client.SyncMasterEntitlementsAsync("valid-user-jwt");
+
+        // O refresh falhou (propagado em JwksRefreshed), mas a assinatura foi conferida
+        // com o cache anterior: verificado, com aviso de renovação pendente.
+        Assert.True(result.Success);
+        Assert.True(result.KeysVerified);
+        Assert.False(result.JwksRefreshed);
+        Assert.NotNull(result.VerificationWarning);
+        Assert.Equal(signedLease, LeaseStorage.LoadMasterLease());
+    }
+
+    [Fact]
+    public async Task ValidateHeartbeatAsync_TamperedRenewal_RejectedBeforeSaving()
+    {
+        string forgedRenewal = CreateForgedMasterLease(HardwareId.GetMachineId());
+        using var httpClient = new HttpClient(HandlerServing(
+            new { success = true, valid = true, scope = "master-lease", leaseToken = forgedRenewal }));
+        using var client = new ConnectorApiClient("https://api.test", httpClient);
+
+        // Token de entrada via parâmetro: o arrange não grava nada em disco.
+        var result = await client.ValidateHeartbeatAsync("lease-existente.nao-gravado.token");
+
+        Assert.False(result.Success);
+        Assert.Contains("verificação de segurança", result.Message);
+        Assert.Null(LeaseStorage.LoadMasterLease());
     }
 
     [Fact]
@@ -207,7 +349,17 @@ public class ConnectorApiClientTests : IDisposable
     [Fact]
     public async Task ValidateHeartbeatAsync_UsesFreshEntitlementsAndSavesRenewedToken()
     {
-        string renewedLease = "renewed.payload.sig";
+        // Lease renovado realmente assinado — em M1 ele precisa passar na verificação
+        // (assinatura + scope + mid) antes de sobrescrever o lease local.
+        string renewedLease = TestHelpers.CreateMasterLeaseJwt(
+            "usr_1",
+            HardwareId.GetMachineId(),
+            DateTimeOffset.UtcNow.AddDays(30),
+            new List<EntitlementItem>
+            {
+                new EntitlementItem { Slug = "revit-automator", Status = "active" },
+                new EntitlementItem { Slug = "parametric-doors", Status = "seat_released" }
+            });
         var response = new
         {
             success = true,
@@ -222,10 +374,13 @@ public class ConnectorApiClientTests : IDisposable
             }
         };
 
-        var handler = new MockHttpMessageHandler(req => new HttpResponseMessage(HttpStatusCode.OK)
-        {
-            Content = new StringContent(JsonSerializer.Serialize(response))
-        });
+        var handler = new MockHttpMessageHandler(req =>
+            req.RequestUri!.AbsolutePath == "/license/jwks"
+                ? JwksResponse()
+                : new HttpResponseMessage(HttpStatusCode.OK)
+                {
+                    Content = new StringContent(JsonSerializer.Serialize(response))
+                });
 
         using var httpClient = new HttpClient(handler);
         using var client = new ConnectorApiClient("https://api.test", httpClient);
@@ -234,6 +389,8 @@ public class ConnectorApiClientTests : IDisposable
         var result = await client.ValidateHeartbeatAsync();
 
         Assert.True(result.Success);
+        Assert.True(result.KeysVerified);   // renovação verificada com o JWKS servido
+        Assert.True(result.JwksRefreshed);
         Assert.Equal(2, result.Entitlements.Count);
         Assert.Equal(1, result.GrantedCount);   // apenas `active` conta como liberado
         Assert.Equal(2, result.TotalCount);     // status frescos vêm da resposta, não do token
@@ -312,6 +469,53 @@ public class ConnectorApiClientTests : IDisposable
         Assert.Contains("Chave ativada", result.Message);
         // Regressão P0: o lease mestre nunca é substituído por um token de produto único.
         Assert.Equal(masterLease, LeaseStorage.LoadMasterLease());
+    }
+
+    /// <summary>
+    /// Handler que serve o JWKS real da chave de teste em <c>/license/jwks</c> e responde
+    /// <paramref name="apiResponse"/> em qualquer outro endpoint. Com
+    /// <paramref name="jwksAvailable"/> = <c>false</c>, o refresh do JWKS falha (500).
+    /// </summary>
+    private static MockHttpMessageHandler HandlerServing(object apiResponse, bool jwksAvailable = true)
+    {
+        return new MockHttpMessageHandler(req =>
+        {
+            if (req.RequestUri!.AbsolutePath == "/license/jwks")
+            {
+                return jwksAvailable
+                    ? JwksResponse()
+                    : new HttpResponseMessage(HttpStatusCode.InternalServerError)
+                    {
+                        Content = new StringContent("jwks indisponível")
+                    };
+            }
+
+            return new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent(JsonSerializer.Serialize(apiResponse))
+            };
+        });
+    }
+
+    /// <summary>
+    /// Monta um lease master com estrutura perfeita, mas assinado por uma chave FORJADA
+    /// (não publicada no JWKS): a assinatura jamais poderá conferir.
+    /// </summary>
+    private static string CreateForgedMasterLease(string mid, string scope = "master-lease")
+    {
+        byte[] attackerSeed = System.Security.Cryptography.SHA256.HashData(
+            Encoding.UTF8.GetBytes("attacker-seed"));
+
+        return TestHelpers.CreateSignedJwt(
+            new
+            {
+                iss = "node-aec",
+                scope,
+                mid,
+                iat = DateTimeOffset.UtcNow.ToUnixTimeSeconds(),
+                exp = DateTimeOffset.UtcNow.AddDays(30).ToUnixTimeSeconds(),
+            },
+            new Ed25519PrivateKeyParameters(attackerSeed, 0));
     }
 
     private static HttpResponseMessage JwksResponse()

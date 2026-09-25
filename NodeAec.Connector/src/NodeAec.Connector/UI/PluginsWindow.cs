@@ -311,7 +311,11 @@ public class PluginsWindow : Window
                 }
                 else
                 {
-                    SetFeedback($"Bem-vindo! {syncResult.GrantedCount} plugin(s) liberado(s).", UiTheme.Primary);
+                    // M1: aviso de degradação das chaves tem prioridade sobre o sucesso.
+                    string? keysWarning = syncResult.VerificationWarning;
+                    SetFeedback(
+                        keysWarning ?? $"Bem-vindo! {syncResult.GrantedCount} plugin(s) liberado(s).",
+                        keysWarning == null ? UiTheme.Primary : UiTheme.Accent);
                 }
             }
             else
@@ -344,9 +348,13 @@ public class PluginsWindow : Window
                 ? await client.SyncMasterEntitlementsAsync(session.Value.Token).ConfigureAwait(true)
                 : await client.ValidateHeartbeatAsync().ConfigureAwait(true);
 
+            // M1: surface o estado das chaves de verificação no resultado do sync/heartbeat.
+            string? keysWarning = result.Success ? result.VerificationWarning : null;
             SetFeedback(
-                result.Success ? "Lista atualizada." : $"Não foi possível atualizar agora: {result.Message}",
-                result.Success ? UiTheme.Primary : UiTheme.Accent);
+                result.Success
+                    ? keysWarning ?? "Lista atualizada."
+                    : $"Não foi possível atualizar agora: {result.Message}",
+                result.Success && keysWarning == null ? UiTheme.Primary : UiTheme.Accent);
         }
         catch (Exception ex)
         {

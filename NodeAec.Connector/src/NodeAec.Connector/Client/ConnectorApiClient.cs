@@ -7,6 +7,7 @@ using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using NodeAec.Connector.Config;
+using NodeAec.Connector.Cryptography;
 using NodeAec.Connector.Hardware;
 using NodeAec.Connector.Models;
 using NodeAec.Connector.Storage;
@@ -101,8 +102,20 @@ public class ConnectorApiClient : IDisposable
 
             var entitlements = ParseEntitlements(root) ?? new List<EntitlementItem>();
 
-            // Atualiza o cache de chaves públicas (JWKS) para verificação offline do lease
-            await SigningKeyStore.RefreshAsync(_baseUrl, _httpClient, cancellationToken).ConfigureAwait(false);
+            // Atualiza o cache de chaves públicas (JWKS) para verificação offline do lease.
+            // O retorno NÃO é descartado: é propagado ao chamador em `JwksRefreshed`.
+            bool jwksRefreshed = await SigningKeyStore.RefreshAsync(_baseUrl, _httpClient, cancellationToken).ConfigureAwait(false);
+
+            // M1: assinatura + scope + mid verificados ANTES de persistir. Lease que não
+            // passa na verificação jamais toca o disco (o lease anterior permanece intacto);
+            // sem chave disponível, salva-se com aviso de "não verificado" para a UI, em vez
+            // de reportar um sucesso que o gate rejeitaria de forma opaca depois.
+            LeaseVerdict verdict = VerifyLeaseBeforeSave(leaseToken, out string? verdictReason);
+            if (verdict == LeaseVerdict.Rejected)
+            {
+                Diagnostics.ConnectorLog.Write("WARN", $"Lease recebido recusado antes de salvar: {verdictReason}.");
+                return SyncResult.Failed("A licença recebida não passou na verificação de segurança e não foi salva. Atualize novamente; se o problema persistir, contate o suporte Node.aec.");
+            }
 
             // Salva o token mestre em disco protegido com DPAPI (falha = modo fechado, sem texto puro)
             if (!LeaseStorage.SaveMasterLease(leaseToken))
@@ -110,7 +123,10 @@ public class ConnectorApiClient : IDisposable
                 return SyncResult.Failed("Suas licenças foram recebidas, mas não puderam ser salvas neste computador. Verifique as permissões do usuário e tente novamente.");
             }
 
-            return SyncResult.Succeeded(leaseToken, entitlements, expiresAt, granted, total);
+            SyncResult synced = SyncResult.Succeeded(leaseToken, entitlements, expiresAt, granted, total);
+            synced.KeysVerified = verdict == LeaseVerdict.Verified;
+            synced.JwksRefreshed = jwksRefreshed;
+            return synced;
         }
         catch (Exception ex)
         {
@@ -168,17 +184,22 @@ public class ConnectorApiClient : IDisposable
             // `entitlements.lease` apagaria as demais concessões e o gate passaria a negar
             // tudo. A ativação só libera de fato quando a conta ressincroniza o lease mestre
             // (fluxo tratado pela janela após este retorno).
-            await SigningKeyStore.RefreshAsync(_baseUrl, _httpClient, cancellationToken).ConfigureAwait(false);
+            // O lease de ativação nunca é persistido aqui (produto único), mas o refresh do
+            // JWKS é propagado em `JwksRefreshed`: sem chave em cache, a sincronização mestre
+            // seguinte não terá como verificar a assinatura.
+            bool jwksRefreshed = await SigningKeyStore.RefreshAsync(_baseUrl, _httpClient, cancellationToken).ConfigureAwait(false);
 
             var payload = LeaseStorage.ParseJwtPayload(leaseToken);
 
-            return SyncResult.Succeeded(
+            SyncResult activated = SyncResult.Succeeded(
                 leaseToken,
                 new List<EntitlementItem>(),
                 payload?.ExpiresAt,
                 0,
                 0,
                 "Chave ativada com sucesso!");
+            activated.JwksRefreshed = jwksRefreshed;
+            return activated;
         }
         catch (Exception ex)
         {
@@ -208,6 +229,11 @@ public class ConnectorApiClient : IDisposable
         };
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token.Trim());
 
+        // Estado das chaves de verificação para propagar no resultado. Sem lease renovado
+        // nada é persistido nem atualizado, então ambos permanecem no estado pleno.
+        bool keysVerified = true;
+        bool jwksRefreshed = true;
+
         try
         {
             var response = await _httpClient.SendAsync(request, cancellationToken).ConfigureAwait(false);
@@ -231,7 +257,16 @@ public class ConnectorApiClient : IDisposable
             string? renewedToken = root.TryGetProperty("leaseToken", out var lt) ? lt.GetString() : null;
             if (!string.IsNullOrWhiteSpace(renewedToken))
             {
-                await SigningKeyStore.RefreshAsync(_baseUrl, _httpClient, cancellationToken).ConfigureAwait(false);
+                jwksRefreshed = await SigningKeyStore.RefreshAsync(_baseUrl, _httpClient, cancellationToken).ConfigureAwait(false);
+
+                // M1 (mesma política do sync): assinatura + scope + mid verificadas ANTES de
+                // sobrescrever o lease local; rejeição preserva o lease anterior intacto.
+                LeaseVerdict verdict = VerifyLeaseBeforeSave(renewedToken, out string? verdictReason);
+                if (verdict == LeaseVerdict.Rejected)
+                {
+                    Diagnostics.ConnectorLog.Write("WARN", $"Lease renovado recusado antes de salvar: {verdictReason}.");
+                    return SyncResult.Failed("A licença renovada não passou na verificação de segurança e não foi salva. Atualize novamente; se o problema persistir, contate o suporte Node.aec.");
+                }
 
                 if (!LeaseStorage.SaveMasterLease(renewedToken))
                 {
@@ -239,6 +274,7 @@ public class ConnectorApiClient : IDisposable
                 }
 
                 token = renewedToken;
+                keysVerified = verdict == LeaseVerdict.Verified;
             }
 
             // A resposta pode trazer status granulares mais frescos que o token local
@@ -248,13 +284,16 @@ public class ConnectorApiClient : IDisposable
             int activeCount = entitlements.FindAll(e => e.IsActive()).Count;
             var expiresAt = LeaseStorage.ParseJwtPayload(token)?.ExpiresAt;
 
-            return SyncResult.Succeeded(
+            SyncResult renewed = SyncResult.Succeeded(
                 token,
                 entitlements,
                 expiresAt,
                 activeCount,
                 entitlements.Count,
                 "Validação concluída com sucesso.");
+            renewed.KeysVerified = keysVerified;
+            renewed.JwksRefreshed = jwksRefreshed;
+            return renewed;
         }
         catch (Exception ex)
         {
@@ -281,6 +320,69 @@ public class ConnectorApiClient : IDisposable
         {
             return false;
         }
+    }
+
+    /// <summary>
+    /// Veredito da verificação de um lease recebido da API <b>antes</b> de persisti-lo.
+    /// </summary>
+    private enum LeaseVerdict
+    {
+        /// <summary>Assinatura, scope e mid conferem: pode ser salvo como verificado.</summary>
+        Verified,
+
+        /// <summary>Sem chave disponível para conferir a assinatura: salva apenas com aviso de "não verificado".</summary>
+        Unverifiable,
+
+        /// <summary>Não passou na verificação: jamais pode tocar o disco (modo fechado).</summary>
+        Rejected,
+    }
+
+    /// <summary>
+    /// Verifica um lease recebido da API ANTES de persisti-lo: assinatura Ed25519 (com a
+    /// chave disponível), <c>scope</c> <c>master-lease</c> e amarração de hardware
+    /// (<c>mid</c>) desta máquina. Nenhuma etapa confia nas anteriores: qualquer falha
+    /// impede a gravação e mantém o lease anterior intacto.
+    /// </summary>
+    /// <param name="leaseToken">Lease JWT retornado pela API.</param>
+    /// <param name="reason">Motivo legível para log quando o desfecho é <see cref="LeaseVerdict.Rejected"/> (nunca exibir ao usuário).</param>
+    /// <returns>
+    /// <see cref="LeaseVerdict.Verified"/> (tudo confere), <see cref="LeaseVerdict.Unverifiable"/>
+    /// (sem chave disponível — gravar somente com aviso) ou <see cref="LeaseVerdict.Rejected"/>.
+    /// </returns>
+    private static LeaseVerdict VerifyLeaseBeforeSave(string leaseToken, out string? reason)
+    {
+        // 1. Assinatura primeiro: sem ela nenhum claim merece confiança. A ausência de chave
+        //    não é rejeição — é impossibilidade de verificar (o chamador propaga "não verificado").
+        LeaseSignatureVerifier.VerificationOutcome outcome = LeaseSignatureVerifier.Evaluate(leaseToken, out reason);
+        if (outcome == LeaseSignatureVerifier.VerificationOutcome.Rejected)
+        {
+            return LeaseVerdict.Rejected;
+        }
+
+        // 2. Claims estruturais: verificáveis mesmo sem chave (não dependem de criptografia).
+        //    Motivos fixos para o log — nunca ecoar claims de origem desconhecida.
+        var payload = LeaseStorage.ParseJwtPayload(leaseToken);
+        if (payload == null)
+        {
+            reason = "payload do lease ilegível";
+            return LeaseVerdict.Rejected;
+        }
+
+        if (!string.Equals(payload.Scope, "master-lease", StringComparison.OrdinalIgnoreCase))
+        {
+            reason = "scope do lease não é master-lease";
+            return LeaseVerdict.Rejected;
+        }
+
+        if (!string.Equals(payload.Mid, HardwareId.GetMachineId(), StringComparison.OrdinalIgnoreCase))
+        {
+            reason = "mid do lease divergente desta máquina";
+            return LeaseVerdict.Rejected;
+        }
+
+        return outcome == LeaseSignatureVerifier.VerificationOutcome.Verified
+            ? LeaseVerdict.Verified
+            : LeaseVerdict.Unverifiable;
     }
 
     /// <summary>

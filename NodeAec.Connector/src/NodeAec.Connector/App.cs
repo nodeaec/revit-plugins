@@ -145,6 +145,17 @@ public class App : IExternalApplication
                     {
                         Diagnostics.ConnectorLog.Write("WARN", $"Heartbeat de lease falhou: {heartbeat.Message}");
                     }
+                    else if (!heartbeat.KeysVerified)
+                    {
+                        // M1: texto fixo e sanitizado (nunca mensagem do servidor) — o lease
+                        // renovou sem chave para conferir a assinatura; o gate nega até o
+                        // JWKS voltar a ficar disponível.
+                        Diagnostics.ConnectorLog.Write("WARN", "Heartbeat renovou o lease sem verificar a assinatura (JWKS indisponível).");
+                    }
+                    else if (!heartbeat.JwksRefreshed)
+                    {
+                        Diagnostics.ConnectorLog.Write("WARN", "Heartbeat validou o lease, mas o cache JWKS não pôde ser renovado.");
+                    }
                 }
             }
             catch (Exception ex)

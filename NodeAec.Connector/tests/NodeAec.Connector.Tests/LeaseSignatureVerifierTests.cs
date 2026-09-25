@@ -128,6 +128,62 @@ public class LeaseSignatureVerifierTests : IDisposable
         Assert.Contains("indisponível", reason);
     }
 
+    // ---- M1: desfecho granular (Verified / NoKeysAvailable / Rejected) ----
+
+    [Fact]
+    public void Evaluate_WithoutJwksCache_ReturnsNoKeysAvailable()
+    {
+        string jwt = CreateToken();
+
+        var outcome = LeaseSignatureVerifier.Evaluate(jwt, out string? reason);
+
+        // Sem chave nenhuma não há como verificar: indisponibilidade, não adulteração.
+        Assert.Equal(LeaseSignatureVerifier.VerificationOutcome.NoKeysAvailable, outcome);
+        Assert.Contains("indisponível", reason);
+    }
+
+    [Fact]
+    public void Evaluate_ValidSignedToken_ReturnsVerified()
+    {
+        TestHelpers.InstallTestSigningKey();
+
+        var outcome = LeaseSignatureVerifier.Evaluate(CreateToken(), out string? reason);
+
+        Assert.Equal(LeaseSignatureVerifier.VerificationOutcome.Verified, outcome);
+        Assert.Null(reason);
+    }
+
+    [Fact]
+    public void Evaluate_SignedByUnknownKey_ReturnsRejected()
+    {
+        TestHelpers.InstallTestSigningKey();
+
+        byte[] attackerSeed = SHA256Of("attacker-seed");
+        string jwt = TestHelpers.CreateSignedJwt(
+            new { iss = "node-aec", scope = "master-lease" },
+            new Ed25519PrivateKeyParameters(attackerSeed, 0));
+
+        var outcome = LeaseSignatureVerifier.Evaluate(jwt, out string? reason);
+
+        // Há chave disponível e ela não confirma: rejeição firme.
+        Assert.Equal(LeaseSignatureVerifier.VerificationOutcome.Rejected, outcome);
+        Assert.False(string.IsNullOrWhiteSpace(reason));
+    }
+
+    [Fact]
+    public void Evaluate_KidMismatchWithCachedKeys_ReturnsRejectedNotUnavailable()
+    {
+        // Chaves existem no cache, mas nenhuma atende ao kid do token: um lease forjado
+        // com kid desconhecido NÃO pode entrar pela porta de "JWKS ausente".
+        TestHelpers.InstallTestSigningKey();
+        string jwt = CreateTokenWithKid("kid-desconhecido");
+
+        var outcome = LeaseSignatureVerifier.Evaluate(jwt, out string? reason);
+
+        Assert.Equal(LeaseSignatureVerifier.VerificationOutcome.Rejected, outcome);
+        Assert.False(string.IsNullOrWhiteSpace(reason));
+    }
+
     [Theory]
     [InlineData(null)]
     [InlineData("")]
@@ -207,6 +263,23 @@ public class LeaseSignatureVerifierTests : IDisposable
             new string('m', 64),
             DateTimeOffset.UtcNow.AddDays(10),
             ents);
+    }
+
+    /// <summary>
+    /// Monta um JWT assinado com a chave de teste, mas com <paramref name="kid"/> de header
+    /// diferente do publicado no JWKS — nenhuma chave candidata poderá atendê-lo.
+    /// </summary>
+    private static string CreateTokenWithKid(string kid)
+    {
+        string header = ToBase64Url($"{{\"alg\":\"EdDSA\",\"typ\":\"JWT\",\"kid\":\"{kid}\"}}");
+        string payload = ToBase64Url("{\"iss\":\"node-aec\",\"scope\":\"master-lease\"}");
+
+        var signer = new Ed25519Signer();
+        signer.Init(true, new Ed25519PrivateKeyParameters(TestHelpers.Rfc8032TestSeed, 0));
+        byte[] message = Encoding.ASCII.GetBytes($"{header}.{payload}");
+        signer.BlockUpdate(message, 0, message.Length);
+
+        return $"{header}.{payload}.{ToBase64Url(signer.GenerateSignature())}";
     }
 
     private static byte[] SHA256Of(string input)
