@@ -7,7 +7,6 @@ using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using Autodesk.Windows;
-using Microsoft.Win32;
 using NodeAec.Connector.Auth;
 using NodeAec.Connector.Client;
 using NodeAec.Connector.Config;
@@ -169,10 +168,9 @@ public class ConnectorWindow : Window
         keyRow.Children.Add(_btnActivateKey);
         manualContent.Children.Add(keyRow);
 
-        var btnImportLease = CreateLinkButton("ou importar um arquivo de licença (.lease)");
-        btnImportLease.Click += (s, e) => HandleImportLeaseFile();
-        manualContent.Children.Add(btnImportLease);
-
+        // A importação de arquivos .lease fica de fora desta iteração: o formato de
+        // exportação/troca ainda não é um contrato estável e um arquivo de origem
+        // desconhecida seria recusado pelo gate na validação de assinatura.
         _txtMachineId = new TextBlock
         {
             Text = $"Identificação desta máquina (para o suporte): {HardwareId.GetMachineId()}",
@@ -407,9 +405,18 @@ public class ConnectorWindow : Window
 
             if (syncResult.Success)
             {
+                // Identidade exibida vem das claims do token de sessão — o lease mestre
+                // não carrega identidade (apenas `sub` técnico).
                 var userClaims = LeaseStorage.ParseUserSessionClaims(userToken);
-                LeaseStorage.SaveSession(userClaims?.Email, userToken, userClaims?.Name);
-                SetFeedback($"Tudo pronto! {syncResult.GrantedCount} plugin(s) liberado(s) neste computador.", UiTheme.Primary);
+
+                if (!LeaseStorage.SaveSession(userClaims?.Email, userToken, userClaims?.Name))
+                {
+                    SetFeedback("Suas licenças chegaram, mas não foi possível salvar a sessão localmente. Verifique as permissões do usuário.", UiTheme.Accent);
+                }
+                else
+                {
+                    SetFeedback($"Tudo pronto! {syncResult.GrantedCount} plugin(s) liberado(s) neste computador.", UiTheme.Primary);
+                }
             }
             else
             {
@@ -418,7 +425,7 @@ public class ConnectorWindow : Window
         }
         catch (Exception ex)
         {
-            SetFeedback($"Algo não saiu como esperado: {ex.Message}", UiTheme.Accent);
+            SetFeedback($"Não foi possível concluir o login: {ex.Message}", UiTheme.Accent);
         }
         finally
         {
@@ -487,7 +494,26 @@ public class ConnectorWindow : Window
             if (result.Success)
             {
                 _txtManualKey.Clear();
-                SetFeedback("Chave ativada! Seus plugins foram liberados.", UiTheme.Primary);
+
+                // A ativação em si não escreve o lease mestre (token de produto único).
+                // Agora ressincronizamos com a conta para que o lease mestre passe a
+                // conter a chave recém-ativada — sem sessão não há lease mestre a atualizar.
+                var session = LeaseStorage.LoadSession();
+                if (session.HasValue && !string.IsNullOrWhiteSpace(session.Value.Token))
+                {
+                    SetFeedback("Chave ativada! Atualizando suas licenças...", UiTheme.Primary);
+                    var sync = await client.SyncMasterEntitlementsAsync(session.Value.Token).ConfigureAwait(true);
+
+                    SetFeedback(
+                        sync.Success
+                            ? $"Chave ativada! {sync.GrantedCount} plugin(s) liberado(s) neste computador."
+                            : $"Chave ativada, mas não foi possível atualizar as licenças agora: {sync.Message}",
+                        sync.Success ? UiTheme.Primary : UiTheme.Accent);
+                }
+                else
+                {
+                    SetFeedback("Chave ativada! Entre com sua conta para trazer suas licenças para este computador.", UiTheme.Primary);
+                }
             }
             else
             {
@@ -502,37 +528,6 @@ public class ConnectorWindow : Window
         {
             _btnActivateKey.IsEnabled = true;
             RefreshUiFromStorage();
-        }
-    }
-
-    private void HandleImportLeaseFile()
-    {
-        var dlg = new OpenFileDialog
-        {
-            Filter = "Arquivos de licença Node.aec (*.lease;*.jwt)|*.lease;*.jwt|Todos os arquivos (*.*)|*.*",
-            Title = "Importar arquivo de licença"
-        };
-
-        if (dlg.ShowDialog() == true)
-        {
-            try
-            {
-                string content = File.ReadAllText(dlg.FileName).Trim();
-                var payload = LeaseStorage.ParseJwtPayload(content);
-                if (payload == null)
-                {
-                    SetFeedback("Este arquivo não parece ser uma licença válida.", UiTheme.Accent);
-                    return;
-                }
-
-                LeaseStorage.SaveMasterLease(content);
-                SetFeedback("Licença importada com sucesso!", UiTheme.Primary);
-                RefreshUiFromStorage();
-            }
-            catch (Exception ex)
-            {
-                SetFeedback($"Não foi possível importar: {ex.Message}", UiTheme.Accent);
-            }
         }
     }
 

@@ -17,7 +17,7 @@
 6. [Entrar com sua conta (login no navegador)](#6-entrar-com-sua-conta-login-no-navegador)
 7. [Atualizar suas licenças](#7-atualizar-suas-licenças)
 8. [Ativação com chave manual (NAEC-…)](#8-ativação-com-chave-manual-naec-)
-9. [Importar um arquivo de licença (.lease)](#9-importar-um-arquivo-de-licença-lease)
+9. [Importação de arquivo `.lease` (adiada — ver limitações)](#9-importar-um-arquivo-de-licença-lease)
 10. [Janela “Meus Plugins”](#10-janela-meus-plugins)
 11. [Explorar o catálogo](#11-explorar-o-catálogo)
 12. [Modo offline e tolerância de 30 dias](#12-modo-offline-e-tolerância-de-30-dias)
@@ -48,7 +48,7 @@ Funciona segundo o modelo **Hub & Micro-Gate**:
 | **Login único (SSO)** | Entra com Google/2FA no seu navegador padrão; nenhuma senha é digitada no Revit. |
 | **Licenças em um só lugar** | Todos os seus produtos listados e com data de validade visível. |
 | **Funciona offline** | Plugins abrem e validam licença mesmo sem internet (janelas de 30 dias). |
-| **Estações isoladas (air-gapped)** | Ativação por chave `NAEC-…` ou importação de arquivo `.lease`. |
+| **Estações isoladas (air-gapped)** | Ativação por chave `NAEC-…` (a importação de arquivo `.lease` está adiada). |
 | **Ribbon organizada** | Tudo na aba oficial **Node.aec**, sem abas duplicadas ou fantasmas. |
 
 ---
@@ -153,7 +153,6 @@ Botão: **Atualizar minhas licenças** — busca as licenças mais recentes da s
 Fechado por padrão, para não poluir a tela. Clique sobre o título **“Tenho uma chave de ativação”** para abrir. Dentro você encontra:
 
 - **Campo de chave** + botão **Ativar** — para digitar uma chave enviada pela sua empresa (formato `NAEC-…`).
-- Link **“ou importar um arquivo de licença (.lease)”** — para estações sem acesso à internet.
 - **Identificação desta máquina (para o suporte):** um código longo em fonte monoespaçada. **Guarde/copie esse código ao pedir suporte** — ele identifica unicamente este computador.
 
 ### 5.5 Área de mensagens e rodapé
@@ -217,27 +216,22 @@ Clique em **Atualizar minhas licenças** quando:
    - ⚠️ *“Digite a chave enviada para você (começa com NAEC-...).”* — o campo estava vazio.
    - ⚠️ Mensagem de erro específica (ver [Solução de problemas](#15-solução-de-problemas)).
 
-> 🌐 A ativação por chave **requer internet**, pois valida a chave com o servidor Node.aec. Para máquina sem internet, use a [importação de arquivo .lease](#9-importar-um-arquivo-de-licença-lease).
+> 🌐 A ativação por chave **requer internet**, pois valida a chave com o servidor Node.aec. Para máquinas sem internet, fale com o suporte Node.aec: a importação de arquivo `.lease` ainda não está disponível nesta versão.
 
 ---
 
 ## 9. Importar um arquivo de licença (.lease)
 
-Procedimento para **estações isoladas** (sem internet):
+**Esta função não está disponível na versão 0.1.**
 
-1. Em um computador com internet, peça ao administrador/licenciamento o arquivo de licença com extensão **`.lease`** (ou `.jwt`).
-2. Copie o arquivo para a estação isolada (pendrive, rede interna…).
-3. No Revit, abra **Minha Conta** → expansor **“Tenho uma chave de ativação”**.
-4. Clique em **“ou importar um arquivo de licença (.lease)”**.
-5. Selecione o arquivo na janela de diálogo e confirme.
+O link **“ou importar um arquivo de licença (.lease)”** foi removido da janela **Minha Conta** porque o formato de exportação/troca de arquivos `.lease` ainda não é um contrato estável da plataforma. Um arquivo de origem desconhecida seria recusado na validação de assinatura (Ed25519) e não liberaria nenhum plugin.
 
-**Resultado:**
+**Alternativas para uma estação isolada (air-gapped):**
 
-- ✅ *“Licença importada com sucesso!”* — os plugins são liberados imediatamente, **sem internet**.
-- ⚠️ *“Este arquivo não parece ser uma licença válida.”* — o arquivo está corrompido ou não é uma licença Node.aec; peça um novo.
-- ⚠️ *“Não foi possível importar: …”* — verifique permissões de leitura do arquivo.
+1. Ative uma chave manual `NAEC-XXXX-XXXX-XXXX-XXXX` — a ativação em si não exige que o lease venha da internet, mas a sincronização das demais licenças sim.
+2. Entre com sua conta em uma máquina com internet para sincronizar as licenças e, em seguida, reproduza o mesmo fluxo nesta estação.
 
-> ⚠️ Licenças são emitidas **para uma máquina específica**. Um arquivo `.lease` gerado para outro computador não será aceito (erro de identificação de máquina).
+A importação de arquivos `.lease` assinados deve voltar em uma iteração futura, quando o formato for oficialmente definido.
 
 ---
 
@@ -294,8 +288,7 @@ O Connector foi desenhado para **funcionar sem internet** no dia a dia:
 
 **Estações totalmente isoladas (air-gapped):**
 
-- Use [chave manual](#8-ativação-com-chave-manual-naec-) a partir de uma máquina com internet **ou**
-- Importe um [arquivo `.lease`](#9-importar-um-arquivo-de-licença-lease) gerado para aquela máquina.
+- Use [chave manual](#8-ativação-com-chave-manual-naec-) em uma máquina com internet e sincronize a conta.
 - A identificação da máquina é fixa; o lease só funciona no computador para o qual foi emitido.
 
 ---
@@ -362,7 +355,6 @@ O Connector foi desenhado para **funcionar sem internet** no dia a dia:
 | *“Esta licença foi suspensa administrativamente.”* | Suspensão pela plataforma | Fale com o administrador da sua conta/suporte. |
 | *“O prazo de tolerância offline (30 dias) expirou. Conecte-se à internet para sincronizar.”* | 30 dias sem sincronizar | Conecte-se à internet e clique em **Atualizar minhas licenças**. |
 | *“O identificador da máquina não corresponde ao registro da concessão.”* | Licença de outra máquina | Gere/ative a licença **para este computador** (use o código de identificação da máquina). |
-| *“Este arquivo não parece ser uma licença válida.”* | Arquivo `.lease` corrompido ou de outra máquina | Peça um novo arquivo ao administrador. |
 | *“Não foi possível abrir o navegador: …”* | Sem navegador padrão | Configure um navegador padrão no Windows. |
 
 ### Problemas comuns
@@ -426,7 +418,7 @@ Não. Ele não altera modelos do Revit — apenas Ribbon, licenças e janelas pr
 ### O que está incluído
 
 - Aba canônica **Node.aec** com painel **Conector** e deduplicação automática de abas.
-- Janela **Minha Conta**: login, logout, status de licenças, atualização, ativação manual e importação de `.lease`.
+- Janela **Minha Conta**: login, logout, status de licenças, atualização e ativação manual.
 - Login **SSO por navegador** (loopback local, proteção CSRF, janela de 120 s).
 - Janela **Meus Plugins** com cartões, validades e links para cada produto.
 - Botão **Explorar Catálogo**.
@@ -440,6 +432,7 @@ Não. Ele não altera modelos do Revit — apenas Ribbon, licenças e janelas pr
 - O Connector **não instala nem atualiza automaticamente** os plugins: ele libera a licença; a entrega e a atualização dos add-ins são feitas pelo instalador do próprio produto.
 - Não há notificação visual pop-up quando a tolerância offline vence — o aviso aparece ao abrir **Minha Conta**.
 - A janela de login pode não voltar o foco automaticamente ao Revit; basta alternar de janela.
+- **A importação de arquivos `.lease` não está disponível nesta versão** — o link foi removido da janela **Minha Conta**; a função deve voltar quando o formato de troca for um contrato estável da plataforma (ver [seção 9](#9-importar-um-arquivo-de-licença-lease)).
 - O contador “N plugin(s) liberado(s)” refere-se à última sincronização.
 
 ---

@@ -10,10 +10,12 @@ O **Node.aec Connector** atua como o Hub no modelo **Hub & Micro-Gate**: o usuá
 
 - **Aba Canônica `Node.aec`**: Registra e gerencia o painel oficial `Conector` na Ribbon do Revit com botões de acesso rápido e deduplicação automática de abas via `AdWindows`.
 - **Browser SSO (OAuth 2.0 Loopback Local — RFC 8252)**: Autenticação moderna e segura com suporte a login com Google e 2FA sem digitação de senhas no Revit.
-- **Master Entitlements Lease**: Obtém e renova concessões consolidadas de múltiplos produtos assinadas assimetricamente com Ed25519 pela plataforma.
-- **Armazenamento Seguro DPAPI**: O arquivo `%APPDATA%\NodeAec\entitlements.lease` é criptografado com `DataProtectionScope.CurrentUser`.
-- **Modo Offline & Air-Gapped**: Entrada manual de chaves (`NAEC-XXXX-...`) ou importação de arquivos de concessão `.lease` assinados para estações isoladas.
-- **Micro-SDK `NodeAecGate`**: Classe canônica para plugins parceiros validarem permissão de execução localmente em `< 1ms` e zero requisições de rede.
+- **Master Entitlements Lease**: Obtém e renova concessões consolidadas de múltiplos produtos, com verificação Ed25519 (RFC 8032) da assinatura **antes** de confiar em qualquer claim.
+- **Verificação com JWKS**: A chave pública é obtida de `GET /license/jwks`, cacheada em `%APPDATA%\NodeAec\license-jwks.json` e opcionalmente fixada via `NODEAEC_LICENSE_PUBLIC_KEY_SPKI`. Sem chave disponível, o gate falha fechado.
+- **Armazenamento Seguro DPAPI**: O arquivo `%APPDATA%\NodeAec\entitlements.lease` é criptografado com `DataProtectionScope.CurrentUser`; falha de DPAPI em Windows não degrada para texto puro.
+- **Modo Offline & Air-Gapped**: Entrada manual de chaves (`NAEC-XXXX-...`). A importação de arquivos `.lease` está **adiada para uma iteração futura** e o link correspondente foi **removido da UI** (o formato de exportação/troca ainda não é um contrato estável).
+- **Micro-SDK `NodeAecGate`**: Classe canônica para plugins parceiros validarem permissão de execução localmente — sem requisições de rede no caminho crítico, em poucos milissegundos.
+- **Diagnóstico Local**: Erros de API mapeados para códigos estáveis e log sanitizado em `%APPDATA%\NodeAec\connector.log` (rotação de 512 KB, sem tokens).
 
 ---
 
@@ -31,23 +33,29 @@ NodeAec.Connector/
 │   ├── NodeAec.Connector.addin   # Manifesto do Revit com AddInId e FullClassName
 │   ├── App.cs                    # IExternalApplication: Ribbon Tab, hooks de ciclo de vida
 │   ├── Auth/
-│   │   ├── DesktopAuthService.cs # Loopback listener, porta efêmera e CSRF state
+│   │   ├── DesktopAuthService.cs # Loopback listener (rota /callback), porta efêmera e CSRF state
 │   │   └── LoginRequirement.cs   # Verificação headless de sessão (botão Meus Plugins)
 │   ├── Client/
-│   │   ├── ConnectorApiClient.cs # Cliente HTTP para API Node.aec (/account/entitlements/lease)
+│   │   ├── ConnectorApiClient.cs # Cliente HTTP: lease, sync, validate, activate + refresh JWKS
 │   │   └── ProductLinks.cs       # Links públicos dos produtos (nodeaec.com.br/products/{slug})
 │   ├── Config/
-│   │   └── ConnectorConfig.cs    # URLs e constantes oficiais
+│   │   └── ConnectorConfig.cs    # URLs, slug do produto-mãe e chave pública SPKI (env)
+│   ├── Cryptography/
+│   │   └── LeaseSignatureVerifier.cs # Verificação Ed25519 + decodificação SPKI (BouncyCastle)
+│   ├── Diagnostics/
+│   │   └── ConnectorLog.cs        # Log local sanitizado com rotação (512 KB)
 │   ├── Storage/
-│   │   └── LeaseStorage.cs       # Gestão do arquivo %APPDATA%\NodeAec\entitlements.lease (DPAPI)
+│   │   ├── LeaseStorage.cs        # Gestão do arquivo %APPDATA%\NodeAec\entitlements.lease (DPAPI)
+│   │   └── SigningKeyStore.cs     # Cache atômico do JWKS (%APPDATA%\NodeAec\license-jwks.json)
 │   ├── Hardware/
-│   │   └── HardwareId.cs         # Identificador SHA-256 da máquina
+│   │   └── HardwareId.cs          # Identificador SHA-256 da máquina
 │   ├── Gate/
-│   │   └── NodeAecGate.cs        # Micro-SDK de validação para plugins parceiros (< 1ms)
+│   │   └── NodeAecGate.cs         # Micro-SDK: assinatura → issuer → scope → iat/exp → claims
 │   ├── Models/
-│   │   ├── EntitlementItem.cs    # Modelo de produto concedido
-│   │   ├── MasterLeasePayload.cs # Claims do JWT Ed25519
-│   │   └── SyncResult.cs         # Resultado de sincronização
+│   │   ├── EntitlementItem.cs     # Modelo de produto concedido
+│   │   ├── MasterLeasePayload.cs  # Claims do JWT Ed25519
+│   │   ├── SyncResult.cs          # Resultado de sincronização
+│   │   └── UserTokenPayload.cs    # Claims do token de usuário (id, email, name)
 │   ├── Commands/
 │   │   ├── ManageConnectorCommand.cs  # Abre a janela Minha Conta
 │   │   ├── ManagePluginsCommand.cs    # Abre a janela Meus Plugins

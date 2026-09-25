@@ -302,9 +302,17 @@ public class PluginsWindow : Window
 
             if (syncResult.Success)
             {
+                // Identidade exibida vem das claims do token de sessão (o lease mestre não traz identidade).
                 var userClaims = LeaseStorage.ParseUserSessionClaims(userToken);
-                LeaseStorage.SaveSession(userClaims?.Email, userToken, userClaims?.Name);
-                SetFeedback($"Bem-vindo! {syncResult.GrantedCount} plugin(s) liberado(s).", UiTheme.Primary);
+
+                if (!LeaseStorage.SaveSession(userClaims?.Email, userToken, userClaims?.Name))
+                {
+                    SetFeedback("Plugins recebidos, mas não foi possível salvar a sessão localmente. Verifique as permissões do usuário.", UiTheme.Accent);
+                }
+                else
+                {
+                    SetFeedback($"Bem-vindo! {syncResult.GrantedCount} plugin(s) liberado(s).", UiTheme.Primary);
+                }
             }
             else
             {
@@ -313,7 +321,7 @@ public class PluginsWindow : Window
         }
         catch (Exception ex)
         {
-            SetFeedback($"Algo não saiu como esperado: {ex.Message}", UiTheme.Accent);
+            SetFeedback($"Não foi possível concluir o login: {ex.Message}", UiTheme.Accent);
         }
         finally
         {
