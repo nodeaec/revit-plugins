@@ -19,6 +19,8 @@
     <PackageReference Include="Nice3point.Revit.Api.AdWindows" Version="$(RevitApiPkgVersion)" PrivateAssets="all" ExcludeAssets="runtime" />
     <!-- Versão derivada do TFM; vazia em net10.0-windows, que já traz o DPAPI na caixa. -->
     <PackageReference Include="System.Security.Cryptography.ProtectedData" Version="$(DpapiPkgVersion)" Condition="'$(DpapiPkgVersion)' != ''" />
+    <!-- Verificação Ed25519 (RFC 8032) do lease local — mesma versão usada pelo Node.aec Connector. -->
+    <PackageReference Include="BouncyCastle.Cryptography" Version="2.7.0" />
   </ItemGroup>
 
   <ItemGroup>

@@ -13,6 +13,7 @@
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.11.0" />
     <PackageReference Include="Microsoft.Win32.Registry" Version="5.0.0" />
     <PackageReference Include="System.Security.Cryptography.ProtectedData" Version="8.0.0" />
+    <PackageReference Include="BouncyCastle.Cryptography" Version="2.7.0" />
     <PackageReference Include="coverlet.collector" Version="6.0.2" />
     <PackageReference Include="xunit" Version="2.9.2" />
     <PackageReference Include="xunit.runner.visualstudio" Version="2.8.2" />
@@ -20,6 +21,7 @@
 
   <ItemGroup>
     <Compile Include="..\..\src\NodeAec.Licensing.Sample\Gate\HardwareId.cs" Link="LinkedSources\HardwareId.cs" />
+    <Compile Include="..\..\src\NodeAec.Licensing.Sample\Gate\LeaseSignatureVerifier.cs" Link="LinkedSources\LeaseSignatureVerifier.cs" />
     <Compile Include="..\..\src\NodeAec.Licensing.Sample\Gate\NodeAecGate.cs" Link="LinkedSources\NodeAecGate.cs" />
   </ItemGroup>
 
