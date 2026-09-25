@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Text.Json;
 using System.Text.Json.Serialization;
 
 namespace NodeAec.Connector.Models;
@@ -20,6 +21,14 @@ public class MasterLeasePayload
 
     [JsonPropertyName("scope")]
     public string? Scope { get; set; }
+
+    /// <summary>
+    /// Audiência do token (<c>aud</c>): para quem o lease foi emitido. Fica como
+    /// <see cref="JsonElement"/> para aceitar string única ou array (RFC 7519) sem
+    /// derrubar a desserialização inteira do payload quando o formato difere.
+    /// </summary>
+    [JsonPropertyName("aud")]
+    public JsonElement? Aud { get; set; }
 
     [JsonPropertyName("iat")]
     public long Iat { get; set; }

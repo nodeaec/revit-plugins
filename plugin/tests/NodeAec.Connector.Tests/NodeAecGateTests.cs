@@ -216,6 +216,27 @@ public class NodeAecGateTests : IDisposable
         Assert.Contains("data", result.Message, StringComparison.OrdinalIgnoreCase);
     }
 
+    [Theory]
+    [InlineData("\"node-aec-plugin\"", true)]
+    [InlineData("[\"node-aec-desktop\",\"node-aec-plugin\"]", true)]
+    [InlineData("[\"node-aec-desktop\"]", true)]
+    [InlineData("[\"outro-produto\"]", false)]
+    [InlineData("[]", false)]
+    [InlineData("\"node-aec-api\"", false)]
+    [InlineData("null", false)]
+    public void HasPlatformAudience_AcceptsOnlyPlatformValues(string audJson, bool expected)
+    {
+        JsonElement aud = JsonSerializer.Deserialize<JsonElement>(audJson);
+
+        Assert.Equal(expected, NodeAecGate.HasPlatformAudience(aud));
+    }
+
+    [Fact]
+    public void HasPlatformAudience_MissingClaim_Denies()
+    {
+        Assert.False(NodeAecGate.HasPlatformAudience(null));
+    }
+
     /// <summary>
     /// Reescreve um claim do payload mantendo o header e a assinatura originais
     /// (simula adulteração de arquivo: a assinatura deixa de conferir).

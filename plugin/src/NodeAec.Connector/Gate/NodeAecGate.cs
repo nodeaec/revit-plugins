@@ -100,6 +100,13 @@ public static class NodeAecGate
                 return GateResult.Failure("A licença local está em formato não suportado. Conecte-se à internet e clique em atualizar no Node.aec Connector.");
             }
 
+            // 0.1b Audiência (RFC 7519): o emissor marca para quem o token é destinado.
+            // Ausente ou de outro fluxo → não valida no gate de plugins (fail-closed).
+            if (!HasPlatformAudience(payload.Aud))
+            {
+                return GateResult.Failure("A licença local não foi emitida para este add-in. Conecte-se à internet e clique em atualizar no Node.aec Connector.");
+            }
+
             // 0.2 Defesa contra relógio retroagido: emissão no futuro além da tolerância de
             // 5 minutos indica data adulterada (contas geradas com iat > now + skew).
             if (payload.Iat > DateTimeOffset.UtcNow.ToUnixTimeSeconds() + ClockSkewToleranceSeconds)
@@ -156,6 +163,45 @@ public static class NodeAecGate
             return GateResult.Failure("Não foi possível verificar a licença local. Abra o Node.aec Connector para ressincronizar.");
         }
     }
+
+    /// <summary>
+    /// Verifica se a audiência (<c>aud</c>) do lease inclui uma das audiências da
+    /// plataforma. Aceita string única ou array (RFC 7519); claim ausente/estranho →
+    /// nega. Audiência conhecida cobre desktop e plugin porque o emissor de lease mestre
+    /// assina para os dois consumidores — recusar um dos dois travaria o gate inteiro.
+    /// </summary>
+    /// <param name="aud">Valor do claim <c>aud</c> desserializado, ou nulo se ausente.</param>
+    /// <returns><c>true</c> se o lease é destinado à plataforma Node.aec.</returns>
+    internal static bool HasPlatformAudience(JsonElement? aud)
+    {
+        if (aud is not { } element)
+        {
+            return false;
+        }
+
+        if (element.ValueKind == JsonValueKind.String)
+        {
+            return IsPlatformAudience(element.GetString());
+        }
+
+        if (element.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var entry in element.EnumerateArray())
+            {
+                if (entry.ValueKind == JsonValueKind.String && IsPlatformAudience(entry.GetString()))
+                {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>Compara uma audiência exatamente com os valores conhecidos da plataforma.</summary>
+    private static bool IsPlatformAudience(string? value) =>
+        string.Equals(value, "node-aec-desktop", StringComparison.Ordinal) ||
+        string.Equals(value, "node-aec-plugin", StringComparison.Ordinal);
 
     /// <summary>
     /// Invoca a janela de gerenciamento do Node.aec Connector se carregado no AppDomain.

@@ -195,6 +195,7 @@ redirecionamento local, protegido pelo `state` anti-CSRF.
 |---|---|---|
 | `iss` | Emissor — deve ser `node-aec` | ✔ |
 | `scope` | Deve ser `master-lease` (leases de produto único são recusados) | ✔ |
+| `aud` | Audiência (string ou array) — deve incluir `node-aec-desktop` ou `node-aec-plugin` | ✔ |
 | `mid` | Machine ID de emissão, case-insensitive | ✔ |
 | `iat` | Emissão (Unix seconds) — rejeitado se `iat > agora + 5 min` (relógio retroagido) | ✔ |
 | `exp` | Fim da tolerância offline — é a fonte do prazo de 30 dias | ✔ |
@@ -203,9 +204,9 @@ redirecionamento local, protegido pelo `state` anti-CSRF.
 **Ordem de verificação em `NodeAecGate.Validate(slug)`** — nenhuma etapa avança se a
 anterior falhar:
 
-1. assinatura Ed25519 (JWKS/âncora) → 2. `iss` → 3. `scope` → 4. `iat` (skew de 5 min) →
-5. `mid` (amarração de hardware) → 6. `exp` (tolerância offline) → 7. presença e status do
-`slug` pedido.
+1. assinatura Ed25519 (JWKS/âncora) → 2. `iss` → 3. `scope` → 4. `aud` → 5. `iat`
+(skew de 5 min) → 6. `mid` (amarração de hardware) → 7. `exp` (tolerância offline) →
+8. presença e status do `slug` pedido.
 
 ---
 
