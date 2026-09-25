@@ -14,7 +14,7 @@ public class ManagePluginsCommand : IExternalCommand
 {
     public Result Execute(ExternalCommandData commandData, ref string message, ElementSet elements)
     {
-        PluginsWindow.Open(commandData.Application);
+        PluginsWindow.Open();
         return Result.Succeeded;
     }
 }

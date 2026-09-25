@@ -13,7 +13,7 @@ public class ManageConnectorCommand : IExternalCommand
 {
     public Result Execute(ExternalCommandData commandData, ref string message, ElementSet elements)
     {
-        ConnectorWindow.Open(commandData.Application);
+        ConnectorWindow.Open();
         return Result.Succeeded;
     }
 }

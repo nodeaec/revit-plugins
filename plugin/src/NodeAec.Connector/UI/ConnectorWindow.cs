@@ -618,10 +618,23 @@ public class ConnectorWindow : Window
         return null;
     }
 
-    public static void Open(Autodesk.Revit.UI.UIApplication? uiApp = null)
+    private static ConnectorWindow? _instance;
+
+    /// <summary>
+    /// Abre (ou reativa) a janela única do Conector. Cliques repetidos na Ribbon não
+    /// empilham janelas — cada uma sincroniza e grava armazenamento em paralelo (L11).
+    /// </summary>
+    public static void Open()
     {
-        var win = new ConnectorWindow();
-        win.Show();
-        win.Activate();
+        if (_instance != null)
+        {
+            _instance.Activate();
+            return;
+        }
+
+        _instance = new ConnectorWindow();
+        _instance.Closed += (_, _) => _instance = null;
+        _instance.Show();
+        _instance.Activate();
     }
 }

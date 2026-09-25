@@ -168,7 +168,7 @@ public static class NodeAecGate
             if (uiType != null)
             {
                 var openMethod = uiType.GetMethod("Open", BindingFlags.Public | BindingFlags.Static);
-                openMethod?.Invoke(null, new object?[] { null });
+                openMethod?.Invoke(null, null);
             }
         }
         catch

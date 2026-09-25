@@ -442,10 +442,23 @@ public class PluginsWindow : Window
         }
     }
 
-    public static void Open(Autodesk.Revit.UI.UIApplication? uiApp = null)
+    private static PluginsWindow? _instance;
+
+    /// <summary>
+    /// Abre (ou reativa) a janela única de plugins. Cliques repetidos na Ribbon não
+    /// empilham janelas — cada uma sincroniza e grava armazenamento em paralelo (L11).
+    /// </summary>
+    public static void Open()
     {
-        var win = new PluginsWindow();
-        win.Show();
-        win.Activate();
+        if (_instance != null)
+        {
+            _instance.Activate();
+            return;
+        }
+
+        _instance = new PluginsWindow();
+        _instance.Closed += (_, _) => _instance = null;
+        _instance.Show();
+        _instance.Activate();
     }
 }
