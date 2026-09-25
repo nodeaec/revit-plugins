@@ -308,9 +308,11 @@ public class PluginsWindow : Window
         stack.Children.Add(nameBlock);
 
         bool active = item.IsActive();
+        // Defesa: STJ pode gravar null em "status" (NRT não o impede) — nunca estourar NRE.
+        string statusUpper = string.IsNullOrWhiteSpace(item.Status) ? "INATIVO" : item.Status.ToUpperInvariant();
         string statusText = item.ExpiresAt.HasValue
             ? (active ? $"Liberado até {item.ExpiresAt.Value:dd/MM/yyyy}" : $"Expirado em {item.ExpiresAt.Value:dd/MM/yyyy}")
-            : (active ? "Liberado — sem data para expirar" : item.Status.ToUpperInvariant());
+            : (active ? "Liberado — sem data para expirar" : statusUpper);
         stack.Children.Add(new TextBlock
         {
             Text = statusText,

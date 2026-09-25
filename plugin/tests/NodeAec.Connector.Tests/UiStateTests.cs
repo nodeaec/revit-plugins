@@ -156,4 +156,16 @@ public class UiStateTests
 
         Assert.Empty(ordered);
     }
+
+    [Fact]
+    public void PluginsActiveFirst_SkipsNullEntriesWithoutThrowing()
+    {
+        var active = new EntitlementItem { Slug = "ativo" };
+
+        IReadOnlyList<EntitlementItem> ordered = UiState.PluginsActiveFirst(
+            new[] { null!, active, null! });
+
+        Assert.Single(ordered);
+        Assert.Equal("ativo", ordered[0].Slug);
+    }
 }

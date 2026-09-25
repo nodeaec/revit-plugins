@@ -120,12 +120,13 @@ internal static class UiState
 
     /// <summary>
     /// Ordena os produtos para exibição: concessões ativas primeiro, mantendo a ordem
-    /// relativa de cada grupo (LINQ <c>OrderBy</c> é estável).
+    /// relativa de cada grupo (LINQ <c>OrderBy</c> é estável). Entradas nulas de um lease
+    /// malformado são descartadas antes da ordenação (defesa — o emissor não as emite).
     /// </summary>
     /// <param name="entitlements">Itens do lease, na ordem do token.</param>
-    /// <returns>Cópia ordenada (ativos primeiro).</returns>
+    /// <returns>Cópia ordenada (ativos primeiro), sem nulos.</returns>
     internal static IReadOnlyList<EntitlementItem> PluginsActiveFirst(IEnumerable<EntitlementItem> entitlements)
     {
-        return entitlements.OrderBy(e => e.IsActive() ? 0 : 1).ToList();
+        return entitlements.Where(e => e != null).OrderBy(e => e.IsActive() ? 0 : 1).ToList();
     }
 }
