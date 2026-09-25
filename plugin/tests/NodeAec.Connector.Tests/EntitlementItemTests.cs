@@ -60,4 +60,31 @@ public class EntitlementItemTests
 
         Assert.Null(item.ExpiresAt);
     }
+
+    // ---------- Claim `granted` (L6) ----------
+
+    [Fact]
+    public void IsActive_ClaimAbsent_DefaultsToGranted()
+    {
+        // Token sem o claim mantém o inicializador do modelo (true).
+        var item = new EntitlementItem { Status = "active" };
+
+        Assert.True(item.IsActive());
+    }
+
+    [Fact]
+    public void IsActive_GrantedFalse_IsInactiveEvenWithActiveStatus()
+    {
+        var item = new EntitlementItem { Status = "active", Granted = false };
+
+        Assert.False(item.IsActive());
+    }
+
+    [Fact]
+    public void IsActive_GrantedTrueActiveStatusAndNoExpiry_IsActive()
+    {
+        var item = new EntitlementItem { Status = "active", Granted = true };
+
+        Assert.True(item.IsActive());
+    }
 }

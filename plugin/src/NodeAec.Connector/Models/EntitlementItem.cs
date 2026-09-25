@@ -24,6 +24,11 @@ public class EntitlementItem
     [JsonPropertyName("status")]
     public string Status { get; set; } = "active";
 
+    /// <summary>
+    /// Claim <c>granted</c> do token: o emissor só inclui concessões concedidas, mas o
+    /// valor é honrado por <see cref="IsActive"/> (L6) — <c>false</c> nega, mesmo que o
+    /// resto do item esteja válido. Ausente no token → padrão <c>true</c>.
+    /// </summary>
     [JsonPropertyName("granted")]
     public bool Granted { get; set; } = true;
 
@@ -59,6 +64,14 @@ public class EntitlementItem
     /// </summary>
     public bool IsActive()
     {
+        // L6: o claim `granted` era deserializado e ignorado. Honrá-lo aqui mantém o
+        // modelo e o gate coerentes: concessão explicitamente não concedida nunca está
+        // ativa (fail-closed caso o emissor passe a emitir `granted: false`).
+        if (!Granted)
+        {
+            return false;
+        }
+
         if (!string.Equals(Status, "active", StringComparison.OrdinalIgnoreCase))
         {
             return false;
