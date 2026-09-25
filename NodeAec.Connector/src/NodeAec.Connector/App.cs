@@ -131,7 +131,7 @@ public class App : IExternalApplication
         {
         }
 
-        // 8. Heartbeat silencioso em segundo plano (não bloqueante)
+        // 8. Heartbeat silencioso em segundo plano (não bloqueante) + registro sanitizado do resultado
         Task.Run(async () =>
         {
             try
@@ -140,12 +140,17 @@ public class App : IExternalApplication
                 if (!string.IsNullOrWhiteSpace(token))
                 {
                     using var client = new ConnectorApiClient();
-                    await client.ValidateHeartbeatAsync(token).ConfigureAwait(false);
+                    var heartbeat = await client.ValidateHeartbeatAsync(token).ConfigureAwait(false);
+                    if (!heartbeat.Success)
+                    {
+                        Diagnostics.ConnectorLog.Write("WARN", $"Heartbeat de lease falhou: {heartbeat.Message}");
+                    }
                 }
             }
-            catch
+            catch (Exception ex)
             {
-                // Silencioso se offline
+                // Silencioso se offline — mas deixa a causa rastreável no log local.
+                Diagnostics.ConnectorLog.Write("WARN", $"Heartbeat de lease interrompido: {ex.GetType().Name}.");
             }
         });
 
@@ -335,14 +340,19 @@ public class App : IExternalApplication
                 {
                     try
                     {
-                        var legacyItems = panel.Source?.Items
-                            ?.Where(item => string.Equals(item.Id, "NodeAec_LoginConnector", StringComparison.OrdinalIgnoreCase))
+                        // Captura a fonte uma única vez: `panel.Source` é anulável e dereferenciá-lo
+                        // dentro do laço repetia a checagem (CS8602) e abria espaço para uma corrida
+                        // caso a fonte fosse trocada entre as remoções.
+                        var items = panel.Source?.Items;
+                        if (items == null) continue;
+
+                        var legacyItems = items
+                            .Where(item => string.Equals(item.Id, "NodeAec_LoginConnector", StringComparison.OrdinalIgnoreCase))
                             .ToList();
-                        if (legacyItems == null) continue;
 
                         foreach (var legacy in legacyItems)
                         {
-                            panel.Source.Items.Remove(legacy);
+                            items.Remove(legacy);
                         }
                     }
                     catch { }
