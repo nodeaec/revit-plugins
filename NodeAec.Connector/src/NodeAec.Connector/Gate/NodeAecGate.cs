@@ -6,6 +6,7 @@ using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using NodeAec.Connector.Cryptography;
 using NodeAec.Connector.Hardware;
 using NodeAec.Connector.Models;
 using NodeAec.Connector.Storage;
@@ -13,11 +14,14 @@ using NodeAec.Connector.Storage;
 namespace NodeAec.Connector.Gate;
 
 /// <summary>
-/// Micro-SDK canônico de validação offline instantânea (< 1ms, zero rede)
-/// para plugins parceiros e ferramentas internas do ecossistema Node.aec.
+/// Micro-SDK canônico de validação offline para plugins parceiros e ferramentas internas
+/// do ecossistema Node.aec. Zero chamadas de rede: lê o lease mestre local (DPAPI) e confere
+/// a assinatura Ed25519 com o JWKS em cache antes de confiar em qualquer claim.
 /// </summary>
 public static class NodeAecGate
 {
+    /// <summary>Tolerância de relógio (segundos) aceita para o claim `iat` estar no futuro.</summary>
+    private const long ClockSkewToleranceSeconds = 300;
     public class GateResult
     {
         public bool IsLicensed { get; set; }
@@ -52,7 +56,8 @@ public static class NodeAecGate
 
     /// <summary>
     /// Valida se o produto identificado por <paramref name="productSlug"/> possui
-    /// concessão ativa nesta estação de trabalho. Executa em menos de 1ms sem acessar a rede.
+    /// concessão ativa nesta estação de trabalho. Executa localmente sem acessar a rede:
+    /// confere a assinatura Ed25519 do lease e só então confia nos claims.
     /// </summary>
     public static GateResult Validate(string productSlug)
     {
@@ -73,6 +78,33 @@ public static class NodeAecGate
             if (payload == null)
             {
                 return GateResult.Failure("Concessão corrompida ou estrutura inválida. Abra o Node.aec Connector para ressincronizar.");
+            }
+
+            // 0. Verificação criptográfica (Ed25519 / RFC 8032): nenhum claim acima vale
+            // alguma coisa antes da assinatura conferir. Arquivo adulterado, forjado ou
+            // assinado por outra chave é rejeitado aqui, em modo fechado.
+            if (!LeaseSignatureVerifier.TryVerify(jwtToken, out string? signatureReason))
+            {
+                Diagnostics.ConnectorLog.Write("WARN", $"Lease local rejeitado: {signatureReason}.");
+                return GateResult.Failure("A licença local não passou na verificação de segurança. Conecte-se à internet e clique em atualizar no Node.aec Connector.");
+            }
+
+            // 0.1 Contrato do token: apenas leases mestres emitidos pela plataforma Node.aec.
+            if (!string.Equals(payload.Iss, "node-aec", StringComparison.Ordinal))
+            {
+                return GateResult.Failure("Origem da licença local desconhecida. Conecte-se à internet e clique em atualizar no Node.aec Connector.");
+            }
+
+            if (!string.Equals(payload.Scope, "master-lease", StringComparison.OrdinalIgnoreCase))
+            {
+                return GateResult.Failure("A licença local está em formato não suportado. Conecte-se à internet e clique em atualizar no Node.aec Connector.");
+            }
+
+            // 0.2 Defesa contra relógio retroagido: emissão no futuro além da tolerância de
+            // 5 minutos indica data adulterada (contas geradas com iat > now + skew).
+            if (payload.Iat > DateTimeOffset.UtcNow.ToUnixTimeSeconds() + ClockSkewToleranceSeconds)
+            {
+                return GateResult.Failure("A data da licença local é inválida. Confira a data e hora deste computador e tente novamente.");
             }
 
             // 1. Validação de amarração de hardware (Machine ID)
@@ -116,7 +148,8 @@ public static class NodeAecGate
         }
         catch (Exception ex)
         {
-            return GateResult.Failure($"Falha ao verificar concessão local: {ex.Message}");
+            Diagnostics.ConnectorLog.Write("ERROR", $"Erro inesperado na validação do gate: {ex.GetType().Name}.");
+            return GateResult.Failure("Não foi possível verificar a licença local. Abra o Node.aec Connector para ressincronizar.");
         }
     }
 

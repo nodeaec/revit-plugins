@@ -29,7 +29,12 @@ public static class ConnectorConfig
         Environment.GetEnvironmentVariable("NODEAEC_CATALOG_URL") ?? "https://nodeaec.com.br/products";
 
     /// <summary>
-    /// Chave pública oficial SPKI (Ed25519) do Node.aec para conferência offline de leases.
+    /// Âncora pública SPKI (Ed25519, base64) opcional para verificação offline de leases,
+    /// definida pela operação em <c>NODEAEC_LICENSE_PUBLIC_KEY_SPKI</c>.
+    /// Quando ausente (padrão), a verificação usa o JWKS em cache local
+    /// (<c>license-jwks.json</c>) atualizado automaticamente pelo Connector via
+    /// <c>GET /license/jwks</c>. Nunca há chave privada neste repositório.
     /// </summary>
-    public const string DefaultPublicKeySpkiBase64 = "MCowBQYDK2VwAyEAGbX7HwE+YvJkWjQ9zX8bN3fV0c2Pq4L1m5K6y7x8w9A=";
+    public static string? LicensePublicKeySpkiBase64 =>
+        Environment.GetEnvironmentVariable("NODEAEC_LICENSE_PUBLIC_KEY_SPKI");
 }
