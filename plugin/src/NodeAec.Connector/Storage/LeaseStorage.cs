@@ -369,6 +369,8 @@ public static class LeaseStorage
     /// (<c>{path}.{guid}.tmp</c>) no mesmo diretório e promove o arquivo ao destino
     /// (<c>File.Replace</c> quando já existe, que é um rename atômico em Windows;
     /// <c>File.Move</c> na primeira gravação), sempre sob <see cref="WriteLock"/>.
+    /// Em sistemas sem <c>File.Replace</c> (FAT32/exFAT/alguns shares) o promote cai para
+    /// apagar+mover, senão toda gravação falharia e a ativação ficaria impossível.
     /// Evita que uma queda de energia/processo deixe um lease/sessão pela metade no disco
     /// e que escritores concorrentes corrompam o arquivo um ao outro. Usa apenas APIs
     /// presentes tanto no .NET Framework 4.8 (Revit 2023/2024) quanto no .NET 8/10.
@@ -390,7 +392,19 @@ public static class LeaseStorage
 
                 if (File.Exists(path))
                 {
-                    File.Replace(tmp, path, null);
+                    try
+                    {
+                        File.Replace(tmp, path, null);
+                    }
+                    catch (PlatformNotSupportedException)
+                    {
+                        // L4: `File.Replace` não existe em FAT32/exFAT e alguns shares de
+                        // rede. Fallback: apagar + mover sob o WriteLock — nesses sistemas
+                        // de arquivo não há rename atômico de qualquer forma. O finally
+                        // ainda limpa o temp se o mover falhar.
+                        File.Delete(path);
+                        File.Move(tmp, path);
+                    }
                 }
                 else
                 {
