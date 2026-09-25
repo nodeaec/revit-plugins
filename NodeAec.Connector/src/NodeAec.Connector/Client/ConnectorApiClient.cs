@@ -73,7 +73,7 @@ public class ConnectorApiClient : IDisposable
         try
         {
             var response = await _httpClient.SendAsync(request, cancellationToken).ConfigureAwait(false);
-            var responseBody = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
+            var responseBody = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
 
             if (!response.IsSuccessStatusCode)
             {
@@ -148,7 +148,7 @@ public class ConnectorApiClient : IDisposable
         try
         {
             var response = await _httpClient.PostAsync($"{_baseUrl}/license/activate", content, cancellationToken).ConfigureAwait(false);
-            var responseBody = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
+            var responseBody = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
 
             if (!response.IsSuccessStatusCode)
             {
@@ -210,7 +210,7 @@ public class ConnectorApiClient : IDisposable
         try
         {
             var response = await _httpClient.SendAsync(request, cancellationToken).ConfigureAwait(false);
-            var responseBody = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
+            var responseBody = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
 
             if (!response.IsSuccessStatusCode)
             {

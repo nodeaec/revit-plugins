@@ -30,7 +30,12 @@ public class DesktopAuthService
     public static string GenerateSecureState()
     {
         byte[] bytes = new byte[32];
-        RandomNumberGenerator.Fill(bytes);
+
+        // RNG instanciado (em vez de RandomNumberGenerator.Fill, que só existe em .NET 6+)
+        // para valer também em .NET Framework 4.8 — Revit 2023/2024.
+        using var rng = RandomNumberGenerator.Create();
+        rng.GetBytes(bytes);
+
         return Convert.ToBase64String(bytes)
             .Replace("+", "-")
             .Replace("/", "_")
@@ -109,7 +114,7 @@ public class DesktopAuthService
                     byte[] errorBytes = Encoding.UTF8.GetBytes("Falha na autenticação: Estado inválido ou token ausente.");
                     response.StatusCode = 400;
                     response.ContentType = "text/plain; charset=utf-8";
-                    await response.OutputStream.WriteAsync(errorBytes, cancellationToken).ConfigureAwait(false);
+                    await response.OutputStream.WriteAsync(errorBytes, 0, errorBytes.Length, cancellationToken).ConfigureAwait(false);
                     response.Close();
                     throw new InvalidOperationException("Falha na validação CSRF do login.");
                 }
@@ -139,7 +144,7 @@ public class DesktopAuthService
                 response.ContentType = "text/html; charset=utf-8";
                 response.StatusCode = 200;
                 response.ContentLength64 = buffer.Length;
-                await response.OutputStream.WriteAsync(buffer, cancellationToken).ConfigureAwait(false);
+                await response.OutputStream.WriteAsync(buffer, 0, buffer.Length, cancellationToken).ConfigureAwait(false);
                 response.Close();
 
                 return userToken;

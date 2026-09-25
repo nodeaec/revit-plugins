@@ -1,0 +1,85 @@
+<Project>
+  <!--
+    Shared Revit-year build matrix for the add-in projects in this repository.
+    Override the year with: dotnet build -p:RevitYear=<2023..2027> (default 2026).
+    Projects that declare their own TargetFramework (headless test projects) opt out.
+  -->
+  <PropertyGroup>
+    <RevitYear Condition="'$(RevitYear)' == ''">2026</RevitYear>
+
+    <!-- Nice3point Revit API packages: one pinned version per Revit year. -->
+    <RevitApiPkgVersion Condition="'$(RevitYear)' == '2023'">2023.1.90</RevitApiPkgVersion>
+    <RevitApiPkgVersion Condition="'$(RevitYear)' == '2024'">2024.3.60</RevitApiPkgVersion>
+    <RevitApiPkgVersion Condition="'$(RevitYear)' == '2025'">2025.4.60</RevitApiPkgVersion>
+    <RevitApiPkgVersion Condition="'$(RevitYear)' == '2026'">2026.4.10</RevitApiPkgVersion>
+    <RevitApiPkgVersion Condition="'$(RevitYear)' == '2027'">2027.2.0</RevitApiPkgVersion>
+
+    <!--
+      Revit runtime family per year: 2023-2024 = .NET Framework 4.8, 2025-2026 = .NET 8,
+      2027 = .NET 10.
+
+      2026 stays on net8.0-windows on purpose, even though Revit 2026.5 itself runs on
+      .NET 10 (RevitAPI.runtimeconfig.json -> tfm net10.0). Two reasons:
+        * Nice3point ships no net10 reference package for 2026 (latest is 2026.4.10 =
+          net8.0-windows7.0);
+        * the compatibility direction only works one way: a net8 add-in loads in the
+          2026.5 net10 host, while a net10 add-in fails to load in the 2026.0-2026.4
+          net8 host.
+      The earlier commit 7ab412b retargeted the Connector to net10 for 2026 on the
+      assumption that the whole 2026 line had moved; this matrix reverts that assumption.
+    -->
+    <TargetFramework Condition="'$(RevitYear)' == '2023' or '$(RevitYear)' == '2024'">net48</TargetFramework>
+    <TargetFramework Condition="'$(RevitYear)' == '2025' or '$(RevitYear)' == '2026'">net8.0-windows</TargetFramework>
+    <TargetFramework Condition="'$(RevitYear)' == '2027'">net10.0-windows</TargetFramework>
+
+    <!-- Year constant for #if REVIT2023..REVIT2027 source guards. -->
+    <DefineConstants>REVIT$(RevitYear);$(DefineConstants)</DefineConstants>
+
+    <!--
+      DPAPI package version follows the target framework.
+      In every case the assembly that runs inside Revit comes from the host runtime:
+        * net48 (Revit 2023/2024): only the NuGet package provides it -> it IS copied
+          to the add-in folder;
+        * net8.0-windows / net10.0-windows (Revit 2025+): System.Security.Cryptography.
+          ProtectedData ships inside Microsoft.WindowsDesktop.App (verified in the 8.0.31
+          and 10.0.12 packs) -> framework-provided, never copied to the output/payload.
+          net10.0-windows does not even reference the package (NuGet prunes it, NU1510).
+    -->
+    <DpapiPkgVersion Condition="'$(TargetFramework)' == 'net48'">4.7.0</DpapiPkgVersion>
+    <DpapiPkgVersion Condition="'$(TargetFramework)' == 'net8.0-windows'">8.0.0</DpapiPkgVersion>
+
+    <!--
+      The .NET Framework reference assemblies are nullable-oblivious: guards such as
+      string.IsNullOrEmpty(...) carry no [NotNullWhen] annotation, so every value that is
+      already proven non-null still reports CS8602/CS8603/CS8604 — and only on the net48
+      year. The identical code compiles warning-free on net8/net10, where the BCL
+      annotations exist and the analysis is accurate, so these are false positives.
+      Suppressed for net48 only, never for the modern targets.
+    -->
+    <NoWarn Condition="'$(TargetFramework)' == 'net48'">$(NoWarn);CS8602;CS8603;CS8604</NoWarn>
+
+    <!-- Isolate intermediate and output folders per Revit year so looped builds never overwrite each other. -->
+    <BaseIntermediateOutputPath>obj\$(RevitYear)\</BaseIntermediateOutputPath>
+    <BaseOutputPath>bin\$(RevitYear)\</BaseOutputPath>
+
+    <!--
+      The SDK only excludes $(BaseIntermediateOutputPath)** (= obj\<year>\**), so once a second
+      year has been built the sibling folders (obj\2024\, obj\2025\, ...) leak into the default
+      **/*.cs Compile glob and their generated AssemblyInfo/TargetFramework attributes collide
+      with this year's (CS0579 duplicate attribute). Exclude the whole tree instead.
+    -->
+    <DefaultItemExcludes>$(DefaultItemExcludes);obj\**;bin\**</DefaultItemExcludes>
+  </PropertyGroup>
+
+  <!--
+    APIs that are in the .NET 8/10 BCL but need an explicit reference or package on
+    .NET Framework 4.8 (Revit 2023/2024). Declared here so every add-in in the
+    repository gets them for the net48 year.
+  -->
+  <ItemGroup Condition="'$(TargetFramework)' == 'net48'">
+    <PackageReference Include="System.Text.Json" Version="8.0.5" />
+    <!-- HttpClient ships with the framework but is NOT part of the SDK's implicit
+         framework reference set for net48, so it must be referenced explicitly. -->
+    <Reference Include="System.Net.Http" />
+  </ItemGroup>
+</Project>

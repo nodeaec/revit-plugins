@@ -47,7 +47,12 @@ public static class HardwareId
 
         using var sha = SHA256.Create();
         var bytes = sha.ComputeHash(Encoding.UTF8.GetBytes($"{guid}:{Environment.MachineName}"));
-        _cachedMachineId = Convert.ToHexString(bytes).ToLowerInvariant();
+
+        // BitConverter em vez de Convert.ToHexString (que só existe em .NET 5+): produz o
+        // MESMO hexadecimal (maiúsculo, sem separadores) após remover os traços — o
+        // identificador da máquina não pode mudar, senão todas as licenças já emitidas
+        // deixariam de corresponder a este computador.
+        _cachedMachineId = BitConverter.ToString(bytes).Replace("-", string.Empty).ToLowerInvariant();
         return _cachedMachineId;
     }
 }

@@ -3,7 +3,9 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Reflection;
+#if NET8_0_OR_GREATER
 using System.Runtime.Loader;
+#endif
 using System.Threading.Tasks;
 using System.Windows.Media.Imaging;
 using Autodesk.Revit.UI;
@@ -28,8 +30,10 @@ public class App : IExternalApplication
 
     static App()
     {
+#if NET8_0_OR_GREATER
         AssemblyLoadContext.Default.Resolving += (context, name) =>
             LoadFromAddInFolder(name);
+#endif
         AppDomain.CurrentDomain.AssemblyResolve += (sender, args) =>
             LoadFromAddInFolder(new AssemblyName(args.Name));
     }
