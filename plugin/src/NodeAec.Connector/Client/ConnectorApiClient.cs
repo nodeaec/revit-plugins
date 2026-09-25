@@ -157,7 +157,9 @@ public class ConnectorApiClient
         }
         catch (Exception ex)
         {
-            return SyncResult.Failed($"Erro de conexão com o servidor Node.aec: {ex.Message}");
+            // L13: só o tipo do erro vira texto do usuário — `ex.Message` pode vazar
+            // detalhes internos (caminhos, TLS, endereços).
+            return SyncResult.Failed($"Erro de conexão com o servidor Node.aec ({ex.GetType().Name}).");
         }
     }
 
@@ -230,7 +232,7 @@ public class ConnectorApiClient
         }
         catch (Exception ex)
         {
-            return SyncResult.Failed($"Falha ao ativar chave: {ex.Message}");
+            return SyncResult.Failed($"Falha ao ativar chave ({ex.GetType().Name}).");
         }
     }
 
@@ -324,7 +326,7 @@ public class ConnectorApiClient
         }
         catch (Exception ex)
         {
-            return SyncResult.Failed($"Falha de rede ao validar: {ex.Message}");
+            return SyncResult.Failed($"Falha de rede ao validar ({ex.GetType().Name}).");
         }
     }
 
