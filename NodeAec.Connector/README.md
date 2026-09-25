@@ -4,6 +4,8 @@ Add-in central de governança desktop, gerenciamento de licenças e Ribbon unifi
 
 O **Node.aec Connector** atua como o Hub no modelo **Hub & Micro-Gate**: o usuário final realiza login uma única vez no navegador (Browser SSO com loopback local RFC 8252) e tem todos os seus plugins, templates e famílias licenciados e sincronizados automaticamente na estação de trabalho com tolerância de até 30 dias offline.
 
+📖 **Documentação**: [Manual do Usuário](docs/USER_MANUAL.md) · [Contrato da API de Licenciamento](docs/licensing-api.md)
+
 ---
 
 ## 🚀 Principais Recursos
@@ -19,6 +21,75 @@ O **Node.aec Connector** atua como o Hub no modelo **Hub & Micro-Gate**: o usuá
 
 ---
 
+## 🏛️ Arquitetura: Hub & Micro-Gate
+
+Em vez de cada plugin parceiro implementar um cliente HTTP próprio, apresentar telas de
+ativação, solicitar chaves individuais (`NAEC-XXXX-...`) e gerenciar criptografia de máquina,
+o Node.aec concentra tudo num **Hub** e entrega aos plugins um **Micro-Gate** local:
+
+```
++--------------------------------------------------------------------------+
+|                              Autodesk Revit                              |
+|                                                                          |
+|  [ Aba "Node.aec" ]                                                      |
+|                                                                          |
+|  +---------------------------+      +----------------------------------+ |
+|  |   Node.aec Connector      |      |      Plugins Parceiros           | |
+|  |      (Hub central)        |      |   (Revit Automator, Portas, ...) | |
+|  |                           |      |                                  | |
+|  |  - Browser SSO (loopback) |      |    public Result Execute(...)    | |
+|  |  - Master Entitlements    |      |    {                             | |
+|  |    Lease + heartbeat      |      |      var r = NodeAecGate         | |
+|  |  - Armazenamento DPAPI    |      |              .Validate(slug);    | |
+|  |  - JWKS / Ed25519         |      |      if (!r.IsLicensed)          | |
+|  |  - Dedup. de abas         |      |          return Result.Cancelled;| |
+|  +---------------------------+      |      }                           | |
+|                                     +----------------------------------+ |
+|   ^                                 | leitura local do plugin, < 1 ms    |
+|   | lease assinado, em DPAPI        | sem nenhuma chamada de rede        |
+|   | em %APPDATA%\NodeAec\           |                                    |
+|   | entitlements.lease              |                                    |
+|                                                                          |
+|   ^                                 |                                    |
+|   | HTTPS                           | abre o navegador padrão            |
+|   v                                 v                                    |
+|   https://api.nodeaec.com.br        https://nodeaec.com.br               |
++--------------------------------------------------------------------------+
+```
+
+**O que o Hub absorve para o plugin parceiro**
+
+1. **Nenhuma infraestrutura de rede no plugin** — o parceiro não escreve um cliente HTTP nem
+   conhece endpoints, tokens de sessão ou formatos de resposta.
+2. **Nenhuma UI de ativação própria** — login, chave manual e gestão de assentos vivem nas
+   janelas *Minha Conta* e *Meus Plugins*.
+3. **Nenhuma gestão de criptografia** — o Hub grava o lease com DPAPI `CurrentUser` e falha
+   fechado; o plugin só lê.
+4. **Uma única autenticação** — o usuário entra uma vez e todos os produtos da conta são
+   sincronizados juntos.
+5. **Validação local em < 1 ms** — `NodeAecGate` é puro CPU, sem I/O de rede no caminho
+   crítico, com tolerância de 30 dias offline.
+6. **Ribbon unificada** — tudo acontece na aba canônica `Node.aec`, sem abas fragmentadas.
+
+> Contrato HTTP consumido pelo Hub (endpoints, payloads, claims e códigos de erro):
+> [docs/licensing-api.md](docs/licensing-api.md).
+
+---
+
+## 🔄 Fluxo de Licença e Heartbeat
+
+| # | Quando | O que acontece |
+|---|---|---|
+| 1 | Usuário clica em **Entrar com minha conta** | O Connector escolhe uma porta efêmera livre, escuta em `127.0.0.1` e abre `https://nodeaec.com.br/auth/desktop?port=…&state=…` no navegador padrão (120 s de timeout, `state` anti-CSRF). |
+| 2 | Login concluído no navegador | O portal redireciona para `http://127.0.0.1:<porta>/callback?token=…&state=…`; o listener valida o `state` e devolve a página *Login Concluído*. |
+| 3 | Janela dispara a sincronização | `POST /account/entitlements/lease` devolve o **Master Entitlements Lease** assinado em Ed25519. |
+| 4 | Resposta recebida | `GET /license/jwks` atualiza o cache de chaves públicas, depois o lease é gravado em `%APPDATA%\NodeAec\entitlements.lease` com DPAPI. Gravação falhou ⇒ erro ao usuário, sem texto puro. |
+| 5 | Abertura do Revit (sempre) | Heartbeat em `Task.Run`: `POST /license/validate` renova o lease; falha de rede é silenciosa e fica em `connector.log`. |
+| 6 | Plugin parceiro executa | `NodeAecGate.Validate(slug)` verifica assinatura → `iss` → `scope` → `iat` → `mid` → `exp` → `slug` e libera ou bloqueia — **sem rede**. |
+| 7 | Sem internet | O lease local vale até o `exp` emitido pela API (padrão de 30 dias); a cada abertura do Revit a validade é tentativamente estendida. |
+
+---
+
 ## 🏗️ Estrutura do Projeto
 
 ```
@@ -29,7 +100,7 @@ NodeAec.Connector/
 ├── scripts/
 │   └── release.ps1               # Script de build, empacotamento .zip e instalação no Revit
 ├── src/NodeAec.Connector/
-│   ├── NodeAec.Connector.csproj  # Target net8.0-windows, Revit 2026, UseWPF=true
+│   ├── NodeAec.Connector.csproj  # Matriz RevitYear (Directory.Build.props), UseWPF=true
 │   ├── NodeAec.Connector.addin   # Manifesto do Revit com AddInId e FullClassName
 │   ├── App.cs                    # IExternalApplication: Ribbon Tab, hooks de ciclo de vida
 │   ├── Auth/

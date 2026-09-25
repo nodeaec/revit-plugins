@@ -23,6 +23,7 @@ revit-plugins/
 │
 ├── NodeAec.Connector/                 # Add-in Hub central de governança desktop e Ribbon unificada
 │   ├── README.md                      # Documentação completa do Connector
+│   ├── docs/                          # Manual do usuário e contrato da API de licenciamento
 │   ├── NodeAec.Connector.sln          # Solution (.NET 8 / Revit 2026)
 │   ├── scripts/
 │   │   └── release.ps1                # Script de compilação, empacotamento e deploy local
@@ -62,6 +63,7 @@ Add-in centralizador de governança e Ribbon unificada `Node.aec` para Autodesk 
 - **Micro-SDK `NodeAecGate`**: Validação de autorização em plugins parceiros em menos de 1ms sem acessar rede.
 - **Tolerância Offline de 30 Dias**: Operação contínua desconectada e suporte a estações isoladas (*air-gapped*).
 - 📖 [Acessar Guia do Node.aec Connector (README.md)](NodeAec.Connector/README.md)
+- 📖 [Acessar o Manual do Usuário](NodeAec.Connector/docs/USER_MANUAL.md) e o [Contrato da API de Licenciamento](NodeAec.Connector/docs/licensing-api.md)
 
 ### 2. `NodeAec.Licensing.Sample` (Acelerador de Licenciamento)
 Implementação de referência completa para proteção e distribuição de add-ins comerciais no Revit.
