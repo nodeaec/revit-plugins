@@ -22,35 +22,38 @@ public static class NodeAecGate
 {
     /// <summary>Tolerância de relógio (segundos) aceita para o claim `iat` estar no futuro.</summary>
     private const long ClockSkewToleranceSeconds = 300;
+    /// <summary>
+    /// Resultado imutável de <see cref="Validate(string)"/>: só as fábricas
+    /// <see cref="Success"/>/<see cref="Failure"/> constroem e nenhuma propriedade muda
+    /// depois — um consumidor não pode reescrever um resultado de gate.
+    /// </summary>
     public class GateResult
     {
-        public bool IsLicensed { get; set; }
-        public string? LicenseType { get; set; }
-        public string? LicenseKey { get; set; }
-        public string? ProductName { get; set; }
-        public DateTimeOffset? ExpiresAt { get; set; }
-        public string Message { get; set; } = string.Empty;
+        private GateResult(bool isLicensed, string? licenseType, string? licenseKey, string? productName, DateTimeOffset? expiresAt, string message)
+        {
+            IsLicensed = isLicensed;
+            LicenseType = licenseType;
+            LicenseKey = licenseKey;
+            ProductName = productName;
+            ExpiresAt = expiresAt;
+            Message = message;
+        }
+
+        public bool IsLicensed { get; }
+        public string? LicenseType { get; }
+        public string? LicenseKey { get; }
+        public string? ProductName { get; }
+        public DateTimeOffset? ExpiresAt { get; }
+        public string Message { get; }
 
         public static GateResult Success(string type, string? key, string? name, DateTimeOffset? expiresAt, string message = "Licença ativa e verificada.")
         {
-            return new GateResult
-            {
-                IsLicensed = true,
-                LicenseType = type,
-                LicenseKey = key,
-                ProductName = name,
-                ExpiresAt = expiresAt,
-                Message = message
-            };
+            return new GateResult(true, type, key, name, expiresAt, message);
         }
 
         public static GateResult Failure(string message)
         {
-            return new GateResult
-            {
-                IsLicensed = false,
-                Message = message
-            };
+            return new GateResult(false, null, null, null, null, message);
         }
     }
 
