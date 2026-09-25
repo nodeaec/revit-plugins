@@ -23,16 +23,25 @@ $ErrorActionPreference = "Stop"
 
 $ConnectorRoot = Split-Path $PSScriptRoot -Parent
 $Sln = Join-Path $ConnectorRoot "NodeAec.Connector.sln"
-$OutDir = Join-Path $ConnectorRoot "src\NodeAec.Connector\bin\$Configuration\net10.0-windows"
+$Project = Join-Path $ConnectorRoot "src\NodeAec.Connector\NodeAec.Connector.csproj"
 $DllName = "NodeAec.Connector.dll"
 $AddinTemplate = Join-Path $ConnectorRoot "src\NodeAec.Connector\NodeAec.Connector.addin"
 $ReleaseDir = Join-Path $ConnectorRoot "release"
 $StageDir = Join-Path $ReleaseDir "stage\NodeAec.Connector"
 $ZipPath = Join-Path $ReleaseDir "NodeAec.Connector-$Version-R$RevitYear.zip"
 
+# Resolve o TFM lendo Directory.Build.props via MSBuild, em vez de repetir a matriz de
+# anos aqui — bin\<ano>\<config>\<tfm> é a única fonte de verdade e muda com RevitYear.
+$TargetFramework = (& dotnet msbuild $Project -getProperty:TargetFramework -p:RevitYear=$RevitYear -nologo -v:quiet |
+  Select-Object -Last 1).ToString().Trim()
+if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($TargetFramework)) {
+  throw "Não foi possível resolver TargetFramework para RevitYear=$RevitYear (exit $LASTEXITCODE)."
+}
+$OutDir = Join-Path $ConnectorRoot "src\NodeAec.Connector\bin\$RevitYear\$Configuration\$TargetFramework"
+
 if (-not $SkipBuild) {
-  Write-Host "==> dotnet build $Sln -c $Configuration"
-  & dotnet build $Sln -c $Configuration
+  Write-Host "==> dotnet build $Sln -c $Configuration -p:RevitYear=$RevitYear ($TargetFramework)"
+  & dotnet build $Sln -c $Configuration -p:RevitYear=$RevitYear
   if ($LASTEXITCODE -ne 0) { throw "dotnet build failed ($LASTEXITCODE)" }
 }
 
@@ -53,9 +62,16 @@ if (Test-Path (Join-Path $OutDir "Resources")) {
 Get-ChildItem $OutDir -Filter *.png -ErrorAction SilentlyContinue |
   Copy-Item -Destination $StageDir -Force
 
-$dpapiDll = Join-Path $StageDir "System.Security.Cryptography.ProtectedData.dll"
-if (-not (Test-Path $dpapiDll)) {
-  throw "Missing DPAPI dependency in build output: System.Security.Cryptography.ProtectedData.dll was not copied to $OutDir."
+# System.Security.Cryptography.ProtectedData tem destino diferente por família de runtime:
+#  * net48 (Revit 2023/2024): vem de pacote NuGet e DEVE ser copiada para o add-in;
+#  * net8.0-windows/net10.0-windows (Revit 2025+): o assembly faz parte do runtime
+#    Microsoft.WindowsDesktop.App do host, é framework-provided e por isso nem aparece
+#    no diretório de saída (copiá-lo seria redundante).
+if ($TargetFramework -eq "net48") {
+  $dpapiDll = Join-Path $StageDir "System.Security.Cryptography.ProtectedData.dll"
+  if (-not (Test-Path $dpapiDll)) {
+    throw "Missing DPAPI dependency in build output: System.Security.Cryptography.ProtectedData.dll was not copied to $OutDir."
+  }
 }
 if (Test-Path (Join-Path $ConnectorRoot "README.md")) {
   Copy-Item (Join-Path $ConnectorRoot "README.md") (Join-Path $StageDir "README.md") -Force
