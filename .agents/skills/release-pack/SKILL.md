@@ -16,24 +16,24 @@ The repository provides an automated PowerShell release script at `scripts/relea
 ### 1. Basic Release Packaging (Generates `.zip` + SHA-256)
 
 ```powershell
-Set-Location NodeAec.Licensing.Sample
-powershell -ExecutionPolicy Bypass -File scripts\release.ps1 -Version 1.0.0
+Set-Location NodeAec.Connector
+powershell -ExecutionPolicy Bypass -File scripts\release.ps1 -Version 0.1.1
 ```
 
 Output:
-- Staged folder: `release\stage\NodeAec.Licensing.Sample\`
-- Archive: `release\NodeAec.Licensing.Sample-1.0.0-R2026.zip`
+- Staged folder: `release\stage\NodeAec.Connector\`
+- Archive: `release\NodeAec.Connector-0.1.1-R2026.zip`
 - Console output: Displays the computed SHA-256 hash.
 
 ### 2. Packaging + Automatic Local Installation
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File scripts\release.ps1 -Version 1.0.0 -Install
+powershell -ExecutionPolicy Bypass -File scripts\release.ps1 -Version 0.1.1 -Install
 ```
 
 This builds, packages, and deploys the add-in to Revit's discovery directories:
-- **Manifest**: `C:\ProgramData\Autodesk\Revit\Addins\2026\NodeAec.Licensing.Sample.addin` (must be at the root of `Addins\<Year>\` for Revit discovery).
-- **Runtime Payload**: `C:\ProgramData\Autodesk\Revit\Addins\2026\NodeAec.Licensing.Sample\` (assemblies, dependency DLLs, resources).
+- **Manifest**: `C:\ProgramData\Autodesk\Revit\Addins\2026\NodeAec.Connector.addin` (must be at the root of `Addins\<Year>\` for Revit discovery).
+- **Runtime Payload**: `C:\ProgramData\Autodesk\Revit\Addins\2026\NodeAec.Connector\` (assemblies, dependency DLLs, resources).
 
 ---
 
@@ -45,7 +45,7 @@ A compliant release package must contain:
    - Must contain the correct absolute `Assembly` path pointing to the installed DLL.
    - Contains a unique `AddInId` GUID and `FullClassName` matching `App`.
 2. **Plugin DLL**:
-   - `NodeAec.Licensing.Sample.dll` (or target plugin DLL).
+   - `NodeAec.Connector.dll` (or target plugin DLL).
 3. **Runtime Dependencies**:
    - `System.Security.Cryptography.ProtectedData.dll` — **`net48` targets only** (Revit
      2023/2024). On `net8.0-windows`/`net10.0-windows` (Revit 2025+) it is provided by the

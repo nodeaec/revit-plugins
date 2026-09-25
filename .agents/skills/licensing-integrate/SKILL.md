@@ -1,6 +1,6 @@
 ---
 name: licensing-integrate
-description: Integrate Node.aec licensing into an existing Autodesk Revit plugin (.NET 8 for Revit 2025/2026+ or .NET Framework 4.8 for Revit 2020-2024). Trigger whenever asked to "integrate node.aec licensing", "add license check", "protect revit command", "configure licensing client", "setup nodeaec licensing", "activate license in plugin", or when modifying licensing logic in a Revit add-in.
+description: Integrate Node.aec licensing into an existing Autodesk Revit plugin (.NET 8 for Revit 2025/2026+ or .NET Framework 4.8 for Revit 2020-2024). Trigger whenever asked to "integrate node.aec licensing", "add license check", "protect revit command", "configure licensing client", "setup node.aec licensing", "activate license in plugin", or when modifying licensing logic in a Revit add-in.
 ---
 
 # Licensing Integrate (Hub & Micro-Gate Architecture)
@@ -76,9 +76,14 @@ Add Windows DPAPI and ensure dependency DLLs are staged:
 > unaffected on every target.
 
 ### Recipe 2: Core Files to Copy
-Copy from `github.com/nodeaec/revit-plugins` (`NodeAec.Licensing.Sample/src/NodeAec.Licensing.Sample/Gate/`):
+Copy from `github.com/nodeaec/revit-plugins` (`NodeAec.Connector/src/NodeAec.Connector/`):
 1. `Gate/NodeAecGate.cs` → Micro-SDK validation class.
-2. `Gate/HardwareId.cs` → Machine SHA-256 fingerprint helper.
+2. `Hardware/HardwareId.cs` → Machine SHA-256 fingerprint helper.
+3. Support types those two depend on: `Cryptography/` (Ed25519 lease verification),
+   `Storage/` (DPAPI lease read) and `Models/` (lease claims).
+
+The consuming side (calling `NodeAecGate.Validate(slug)` from a partner command) is shown in
+`NodeAec.Connector/README.md`, section *Como Integrar Plugins Parceiros com o `NodeAecGate`*.
 
 ### Recipe 3: Application Lifecycle (`App.cs`)
 

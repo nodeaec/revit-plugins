@@ -11,7 +11,7 @@ Repositório oficial: [github.com/nodeaec/revit-plugins](https://github.com/node
 O repositório `revit-plugins` hospeda códigos públicos, SDKs, add-ins de referência e ferramentas comunitárias da **Node.aec** para Autodesk Revit.
 Sua meta é acelerar o ecossistema de desenvolvedores AEC/BIM, padronizando a integração com a plataforma Node.aec (licenciamento, catálogo, atualizações) e servindo de referência de engenharia para plugins profissionais.
 
-### Projetos Principais no Repositório
+### Projeto Principal no Repositório
 
 1. **`NodeAec.Connector`**:
    - O **Hub central de governança desktop** e Ribbon unificado da Node.aec para o Autodesk Revit.
@@ -19,12 +19,8 @@ Sua meta é acelerar o ecossistema de desenvolvedores AEC/BIM, padronizando a in
    - Fornece o micro-SDK `NodeAecGate` (`NodeAecGate.Validate(slug)`), permitindo que plugins de terceiros validem direitos em `< 1ms` de forma segura, local e sem chamadas de rede bloqueantes.
    - Gerencia a aba canônica **`Node.aec`** e deduplicação via `Autodesk.Windows.ComponentManager`.
 
-2. **`NodeAec.Licensing.Sample`**:
-   - Add-in de demonstração e referência prática para desenvolvedores de plugins Revit.
-   - Exemplifica como proteger comandos comerciais (`IExternalCommand`), validar licenças no backend e gerenciar fluxo offline de licenciamento pontual.
-
 > [!NOTE]
-> Se o seu objetivo for instruir como integrar o licenciamento Node.aec em um **plugin externo de um usuário**, consulte o guia específico em [`NodeAec.Licensing.Sample/AGENTS.md`](NodeAec.Licensing.Sample/AGENTS.md) ou a skill [`.agents/skills/licensing-integrate`](.agents/skills/licensing-integrate/SKILL.md). Este arquivo atual rege o desenvolvimento **interno deste repositório**.
+> Se o seu objetivo for instruir como integrar o licenciamento Node.aec em um **plugin externo de um usuário**, consulte a skill [`.agents/skills/licensing-integrate`](.agents/skills/licensing-integrate/SKILL.md) e a seção [Como Integrar do README](NodeAec.Connector/README.md#-como-integrar-plugins-parceiros-com-o-nodeaecgate). Este arquivo atual rege o desenvolvimento **interno deste repositório**.
 
 ---
 
@@ -101,14 +97,10 @@ dotnet test NodeAec.Connector\NodeAec.Connector.sln -c Release
 
 # Empacotar e instalar no Revit 2026 local
 powershell -ExecutionPolicy Bypass -File NodeAec.Connector\scripts\release.ps1 -Version 0.1.1 -Install
-
-# 2. NodeAec.Licensing.Sample (Add-in de Exemplo)
-dotnet build NodeAec.Licensing.Sample\NodeAec.Licensing.Sample.sln -c Release
-powershell -ExecutionPolicy Bypass -File NodeAec.Licensing.Sample\scripts\release.ps1 -Version 1.0.0 -Install
 ```
 
 > [!WARNING]
-> **Os testes de DPAPI exigem um logon interativo.** Qualquer teste que chame `ProtectedData.Protect/Unprotect(..., DataProtectionScope.CurrentUser)` só funciona numa sessão de logon real (SessionId ≥ 1). Num contexto SSH/`services.exe` o processo roda na Session 0 sem Logon SID (`S-1-5-5-*`) e sem `AuthenticationId`, e o Windows devolve `win32 = 5 Acesso negado` — o código é *fail-closed* por design, então a falha aparece como `SaveMasterLease → false`. Em sessão SSH o resultado esperado é **43/63** em `NodeAec.Connector.Tests` (20 falhas de DPAPI) e **12/12** em `NodeAec.Licensing.Tests`; numa sessão interativa os 63 devem passar. Não "corrigir" isso enfraquecendo o armazenamento nem marcando testes como Skip.
+> **Os testes de DPAPI exigem um logon interativo.** Qualquer teste que chame `ProtectedData.Protect/Unprotect(..., DataProtectionScope.CurrentUser)` só funciona numa sessão de logon real (SessionId ≥ 1). Num contexto SSH/`services.exe` o processo roda na Session 0 sem Logon SID (`S-1-5-5-*`) e sem `AuthenticationId`, e o Windows devolve `win32 = 5 Acesso negado` — o código é *fail-closed* por design, então a falha aparece como `SaveMasterLease → false`. Em sessão SSH o resultado esperado é **59/81** em `NodeAec.Connector.Tests` (22 falhas de DPAPI: as 20 históricas mais 2 testes que persistem lease em disco); numa sessão interativa os 81 devem passar. Não "corrigir" isso enfraquecendo o armazenamento nem marcando testes como Skip.
 
 Critérios de Aceite para Modificações:
 - Compilação limpa: **0 Erros**.

@@ -37,7 +37,7 @@ Before writing code, define the observable requirements and edge cases:
 - *Example*: "Machine identity hash must produce the identical 64-character hex string for the same `MachineGuid` + `MachineName`."
 
 ### Phase 1: Author the Unit Tests First
-Create or update tests in a test project (e.g. `NodeAec.Licensing.Tests`) targeting .NET 8 using xUnit, NUnit, or MSTest:
+Create or update tests in a test project (e.g. `NodeAec.Connector.Tests`) targeting .NET 8 using xUnit, NUnit, or MSTest:
 
 ```csharp
 [Fact]
@@ -59,7 +59,7 @@ public void ValidateToken_WithTamperedSignature_ReturnsInvalid()
 ### Phase 2: Run Tests to Verify Failure (Red)
 Run the tests using the .NET CLI:
 ```powershell
-dotnet test tests/NodeAec.Licensing.Tests/NodeAec.Licensing.Tests.csproj
+dotnet test NodeAec.Connector/tests/NodeAec.Connector.Tests/NodeAec.Connector.Tests.csproj
 ```
 Verify that the test fails for the expected reason, not due to compilation errors.
 

@@ -21,42 +21,27 @@ revit-plugins/
 ├── AGENTS.md                          # Diretrizes e regras para agentes de IA neste repositório
 ├── README.md                          # Este documento (visão geral do repositório)
 │
-├── NodeAec.Connector/                 # Add-in Hub central de governança desktop e Ribbon unificada
-│   ├── README.md                      # Documentação completa do Connector
-│   ├── docs/                          # Manual do usuário e contrato da API de licenciamento
-│   ├── NodeAec.Connector.sln          # Solution (.NET 8 / Revit 2026)
-│   ├── scripts/
-│   │   └── release.ps1                # Script de compilação, empacotamento e deploy local
-│   ├── src/NodeAec.Connector/
-│   │   ├── Auth/                      # DesktopAuthService (Browser SSO Loopback RFC 8252)
-│   │   ├── Client/                    # ConnectorApiClient (Master Entitlements Lease)
-│   │   ├── Gate/                      # NodeAecGate (Micro-SDK de validação local < 1ms)
-│   │   ├── Storage/                   # LeaseStorage (Persistência DPAPI %APPDATA%\NodeAec)
-│   │   ├── UI/                        # ConnectorWindow (Interface WPF moderna)
-│   │   └── App.cs                     # IExternalApplication (Ribbon Node.aec e deduplicação)
-│   └── tests/NodeAec.Connector.Tests/ # Testes unitários (net8.0, CI-safe)
-│
-└── NodeAec.Licensing.Sample/          # Exemplo canônico de integração de licenciamento para plugins
-    ├── AGENTS.md                      # Guia do agente para integrar licenciamento em plugins externos
-    ├── README.md                      # Guia passo a passo de integração para humanos
-    ├── NodeAec.Licensing.Sample.sln   # Solution (.NET 8 / Revit 2026)
+└── NodeAec.Connector/                 # Add-in Hub central de governança desktop e Ribbon unificada
+    ├── README.md                      # Documentação completa do Connector
+    ├── docs/                          # Manual do usuário e contrato da API de licenciamento
+    ├── NodeAec.Connector.sln          # Solution (.NET 8 / Revit 2026)
     ├── scripts/
     │   └── release.ps1                # Script de compilação, empacotamento e deploy local
-    └── src/
-        └── NodeAec.Licensing.Sample/
-            ├── Client/                # NodeAecLicenseClient (HTTP, Ed25519, DPAPI)
-            ├── Commands/              # IExternalCommand (ManageLicenseCommand)
-            ├── Config/                # LicenseConfig (endpoints, chaves públicas, paths)
-            ├── Resources/             # Ícones oficiais Node.aec
-            ├── UI/                    # LicenseManagerWindow (WPF)
-            └── App.cs                 # IExternalApplication (Aba Node.aec e Ribbon)
+    ├── src/NodeAec.Connector/
+    │   ├── Auth/                      # DesktopAuthService (Browser SSO Loopback RFC 8252)
+    │   ├── Client/                    # ConnectorApiClient (Master Entitlements Lease)
+    │   ├── Gate/                      # NodeAecGate (Micro-SDK de validação local < 1ms)
+    │   ├── Storage/                   # LeaseStorage (Persistência DPAPI %APPDATA%\NodeAec)
+    │   ├── UI/                        # ConnectorWindow (Interface WPF moderna)
+    │   └── App.cs                     # IExternalApplication (Ribbon Node.aec e deduplicação)
+    └── tests/NodeAec.Connector.Tests/ # Testes unitários (net8.0, CI-safe)
 ```
 
 ---
 
-## 🚀 Projetos e Módulos
+## 🚀 Projeto Principal
 
-### 1. `NodeAec.Connector` (Hub Desktop Central & Governança)
+### `NodeAec.Connector` (Hub Desktop Central & Governança)
 Add-in centralizador de governança e Ribbon unificada `Node.aec` para Autodesk Revit.
 - **Browser SSO (RFC 8252)**: Login seguro no navegador padrão com Google OAuth e retorno por loopback local.
 - **Master Entitlements Lease**: Sincronização consolidada de todos os produtos do usuário em um único token assinado com Ed25519.
@@ -64,15 +49,6 @@ Add-in centralizador de governança e Ribbon unificada `Node.aec` para Autodesk 
 - **Tolerância Offline de 30 Dias**: Operação contínua desconectada e suporte a estações isoladas (*air-gapped*).
 - 📖 [Acessar Guia do Node.aec Connector (README.md)](NodeAec.Connector/README.md)
 - 📖 [Acessar o Manual do Usuário](NodeAec.Connector/docs/USER_MANUAL.md) e o [Contrato da API de Licenciamento](NodeAec.Connector/docs/licensing-api.md)
-
-### 2. `NodeAec.Licensing.Sample` (Acelerador de Licenciamento)
-Implementação de referência completa para proteção e distribuição de add-ins comerciais no Revit.
-- **Segurança Criptográfica**: Assinatura digital assimétrica Ed25519 (RFC 8032) permitindo validação offline por até 30 dias.
-- **Proteção de Hardware (Machine Lock)**: Vinculação de token ao GUID da máquina via Windows DPAPI.
-- **Interface Pronta em WPF**: Janela minimalista e elegante para ativação de chaves e gestão de postos de trabalho (*seats*).
-- **Aba Canônica**: Consolidação na aba oficial `Node.aec` da Ribbon do Revit.
-- 📖 [Acessar Guia do Desenvolvedor (README.md)](NodeAec.Licensing.Sample/README.md)
-- 🤖 [Acessar Guia de Agentes de IA para Integração (AGENTS.md)](NodeAec.Licensing.Sample/AGENTS.md)
 
 ---
 
@@ -92,14 +68,14 @@ Para compilar e contribuir com os projetos deste repositório:
 Para compilar a solution e instalar o add-in diretamente no Revit local:
 
 ```powershell
-# Navegar até o projeto desejado
-Set-Location NodeAec.Licensing.Sample
+# Navegar até o projeto
+Set-Location NodeAec.Connector
 
 # Compilar via .NET CLI
-dotnet build NodeAec.Licensing.Sample.sln -c Release
+dotnet build NodeAec.Connector.sln -c Release
 
 # Empacotar em .zip e instalar automaticamente no Revit 2026
-powershell -ExecutionPolicy Bypass -File scripts\release.ps1 -Version 1.0.0 -Install
+powershell -ExecutionPolicy Bypass -File scripts\release.ps1 -Version 0.1.1 -Install
 ```
 
 ---
