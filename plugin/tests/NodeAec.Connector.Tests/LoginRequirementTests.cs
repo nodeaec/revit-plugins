@@ -48,4 +48,24 @@ public class LoginRequirementTests : IDisposable
 
         Assert.False(LoginRequirement.IsLoggedIn());
     }
+
+    [Theory]
+    [InlineData("", false)]
+    [InlineData(null, false)]
+    [InlineData("   ", false)]
+    [InlineData("arquiteta@escritorio.com.br", true)]
+    public void HasLoginEmail_DiscriminatesByPresenceOfEmail(string? email, bool expected)
+    {
+        // P14: a sessão salva sem e-mail não pode contar como login — ramo que o
+        // caminho completo (SaveSession + IsLoggedIn) não alcança em sessão não interativa.
+        var session = ("Nome", email, "token");
+
+        Assert.Equal(expected, LoginRequirement.HasLoginEmail(session));
+    }
+
+    [Fact]
+    public void HasLoginEmail_MissingSession_ReturnsFalse()
+    {
+        Assert.False(LoginRequirement.HasLoginEmail(null));
+    }
 }

@@ -13,7 +13,18 @@ public static class LoginRequirement
     /// </summary>
     public static bool IsLoggedIn()
     {
-        var session = LeaseStorage.LoadSession();
+        return HasLoginEmail(LeaseStorage.LoadSession());
+    }
+
+    /// <summary>
+    /// Decide se uma sessão carregada conta como login realizado: precisa existir e ter
+    /// e-mail não vazio — token sem e-mail não identifica ninguém. Puro, para teste
+    /// headless (o caminho completo passa por DPAPI e não é semear fora de sessão interativa).
+    /// </summary>
+    /// <param name="session">Sessão carregada, ou nula quando não há sessão salva.</param>
+    /// <returns><c>true</c> se há sessão com e-mail preenchido.</returns>
+    internal static bool HasLoginEmail((string? Name, string? Email, string? Token)? session)
+    {
         return session.HasValue && !string.IsNullOrWhiteSpace(session.Value.Email);
     }
 }

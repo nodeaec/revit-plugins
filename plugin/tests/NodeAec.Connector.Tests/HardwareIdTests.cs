@@ -14,6 +14,7 @@ public class HardwareIdTests
         Assert.NotNull(id);
         Assert.NotEmpty(id);
         Assert.Equal(64, id.Length); // SHA-256 in hex
+        Assert.Matches("^[0-9a-f]{64}$", id);
     }
 
     [Fact]
