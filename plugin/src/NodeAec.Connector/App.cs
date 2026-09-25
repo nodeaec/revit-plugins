@@ -6,6 +6,7 @@ using System.Reflection;
 #if NET8_0_OR_GREATER
 using System.Runtime.Loader;
 #endif
+using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Media.Imaging;
 using Autodesk.Revit.UI;
@@ -158,8 +159,30 @@ public class App : IExternalApplication
         {
         }
 
-        // 8. Heartbeat silencioso em segundo plano (não bloqueante) + registro sanitizado do resultado
-        Task.Run(async () =>
+        // 8. Heartbeat periódico em segundo plano (não bloqueante): dispara já na subida e
+        // renova o lease a cada 6 h — era one-shot, então uma máquina que iniciava offline
+        // nunca renovava na sessão inteira. Falha/offline espera simplesmente o próximo
+        // disparo. A troca atômica evita timers empilhados se o add-in recarregar no
+        // mesmo processo (o timer anterior é descartado).
+        var heartbeatTimer = new Timer(_ => RunHeartbeat(), null, TimeSpan.Zero, HeartbeatPeriod);
+        Interlocked.Exchange(ref _heartbeatTimer, heartbeatTimer)?.Dispose();
+
+        return Result.Succeeded;
+    }
+
+    /// <summary>Cadência do heartbeat de lease (4 disparos/dia — tráfego irrisório).</summary>
+    private static readonly TimeSpan HeartbeatPeriod = TimeSpan.FromHours(6);
+
+    private static Timer? _heartbeatTimer;
+
+    /// <summary>
+    /// Dispara uma rodada de heartbeat em background (fire-and-forget). Só lê armazenamento
+    /// local e fala com a API — nenhuma API do Revit na threadpool. Qualquer exceção vira
+    /// WARN com o tipo do erro (nunca mensagem crua).
+    /// </summary>
+    private static void RunHeartbeat()
+    {
+        _ = Task.Run(async () =>
         {
             try
             {
@@ -184,12 +207,12 @@ public class App : IExternalApplication
                 Diagnostics.ConnectorLog.Write("WARN", $"Heartbeat de lease interrompido: {ex.GetType().Name}.");
             }
         });
-
-        return Result.Succeeded;
     }
 
     public Result OnShutdown(UIControlledApplication application)
     {
+        _heartbeatTimer?.Dispose();
+        _heartbeatTimer = null;
         return Result.Succeeded;
     }
 
