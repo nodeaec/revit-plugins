@@ -431,14 +431,16 @@ public class PluginsWindow : Window
             UiTheme.Accent);
     }
 
-    private static void OpenUrl(string url)
+    private void OpenUrl(string url)
     {
         try
         {
             Process.Start(new ProcessStartInfo { FileName = url, UseShellExecute = true });
         }
-        catch
+        catch (Exception ex)
         {
+            // N3: falha do navegador nunca passa em silêncio — feedback na própria janela.
+            SetFeedback($"Não foi possível abrir o link ({ex.GetType().Name}).", UiTheme.Accent);
         }
     }
 

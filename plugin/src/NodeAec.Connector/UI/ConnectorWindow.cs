@@ -545,7 +545,9 @@ public class ConnectorWindow : Window
 
     private void HandleLogout()
     {
+        // N2: overload com dono — o diálogo fica modal à janela e centrado sobre ela.
         var confirm = MessageBox.Show(
+            this,
             "Deseja sair da sua conta neste computador?\n\nSeus plugins ficarão bloqueados até o próximo login.",
             "Sair da conta",
             MessageBoxButton.YesNo,
@@ -589,8 +591,10 @@ public class ConnectorWindow : Window
                 UseShellExecute = true
             });
         }
-        catch
+        catch (Exception ex)
         {
+            // N3: falha do navegador nunca passa em silêncio — feedback na própria janela.
+            SetFeedback($"Não foi possível abrir o catálogo ({ex.GetType().Name}).", UiTheme.Accent);
         }
     }
 
